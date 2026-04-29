@@ -1,7 +1,8 @@
 # ASL-live — Implementation Plan
 
 Detailed, phase-by-phase plan to build the offline ASL → speech device described
-in [`.claude/discussion.md`](../discussion.md). Each phase has concrete
+in [`.claude/docs/architecture.md`](../docs/architecture.md) and
+[`.claude/docs/tech-stack.md`](../docs/tech-stack.md). Each phase has concrete
 deliverables, acceptance criteria, and a clear definition of done so we can
 demo at every checkpoint.
 
@@ -12,11 +13,18 @@ demo at every checkpoint.
 ```
 ASL-live/
 ├── .claude/
+│   ├── CLAUDE.md
 │   ├── agents/
-│   ├── discussion.md
+│   ├── docs/
+│   │   ├── architecture.md
+│   │   ├── tech-stack.md
+│   │   ├── features/feature-N-<name>.md
+│   │   └── decisions/
 │   ├── plans/
 │   │   ├── PLAN.md              # this file
-│   │   └── plan_zip.md          # condensed plan index
+│   │   ├── plan_zip.md          # condensed plan index
+│   │   ├── current-task.md
+│   │   └── phases/phase-N-<name>.md
 │   └── settings.local.json
 ├── data/                        # collected datasets (gitignored)
 │   └── landmarks/<class>/*.npy
@@ -138,7 +146,7 @@ ASL-live/
 **Acceptance**
 - Test-set accuracy ≥ 95 % on collected data.
 - DELETE not confused with A more than 2 % of the time. If it is, switch DELETE
-  to the pinch gesture (decision deferred to here per discussion §12).
+  to the pinch gesture (decision deferred to here per architecture.md §8).
 - ONNX inference < 5 ms per frame on dev machine.
 
 ---

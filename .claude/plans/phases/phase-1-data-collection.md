@@ -98,7 +98,7 @@ cloned the repo to reproduce the dataset.
 ## Subagents
 
 - **Main thread** implements all 5 commits directly. ~600 lines total,
-  design fully specified in `sub_features.md`.
+  design fully specified in `../../docs/features/`.
 - **`ml-python-expert`** as an optional single review pass on
   `landmarks.py` + `ingest_public.py` after commit 3 lands. Skip if no
   surprises.
