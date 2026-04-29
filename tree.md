@@ -6,6 +6,7 @@
 │   ├── plans/
 │   │   ├── PLAN.md
 │   │   └── plan_zip.md
-│   └── settings.local.json
+│   ├── settings.local.json
+│   └── sub_features.md
 ├── README.md
 └── tree.md
