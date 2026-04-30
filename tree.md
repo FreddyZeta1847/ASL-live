@@ -28,7 +28,8 @@
 │   └── settings.local.json
 ├── scripts/
 │   ├── __init__.py
-│   └── ingest_public.py
+│   ├── ingest_public.py
+│   └── setup_models.py
 ├── src/
 │   └── asl_live/
 │       ├── __init__.py

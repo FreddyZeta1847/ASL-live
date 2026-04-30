@@ -1,17 +1,22 @@
-"""MediaPipe Hands wrapper returning canonical 63-dim landmark vectors.
+"""MediaPipe HandLandmarker wrapper returning canonical 63-dim landmark vectors.
 
 Per feature 1 decisions (`.claude/docs/features/feature-1-hand-landmarks.md`):
-- Single hand: pick MediaPipe's most-confident detection.
+- Single hand: pick the most-confident detection.
 - Left-hand detections mirrored to canonical right-handed form.
 - ``extract()`` returns ``None`` when no hand is detected; the
   classifier is not invoked on no-signal frames.
 - Normalization: wrist to origin, scale so max wrist-to-landmark
   distance = 1. **No rotation normalization.**
-- ``model_complexity=1`` by default; fall back to ``0`` only if the Pi
-  cannot sustain >=15 fps in phase 3 testing.
 
-Module layout
--------------
+Implementation note
+-------------------
+This module uses the **new MediaPipe Tasks API**
+(``mediapipe.tasks.python.vision.HandLandmarker``) — the older
+``mp.solutions.hands.Hands`` namespace was removed in recent
+MediaPipe releases. The Tasks API requires a separate model file
+(`hand_landmarker.task`); run ``scripts/setup_models.py`` once to
+download it before constructing a ``LandmarkExtractor``.
+
 The pure normalization helpers (``_mirror``, ``_translate_to_wrist_origin``,
 ``_scale_to_unit_max``, ``_normalize``) are intentionally importable
 without pulling MediaPipe — that is what ``tests/test_landmarks.py``
@@ -20,9 +25,13 @@ relies on. MediaPipe and OpenCV are imported lazily inside
 """
 from __future__ import annotations
 
+import time
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
+
+from asl_live.config import HAND_LANDMARKER_MODEL
 
 
 # ---------------------------------------------------------------------------
@@ -76,12 +85,12 @@ def _normalize(coords: np.ndarray) -> Optional[np.ndarray]:
 
 
 # ---------------------------------------------------------------------------
-# MediaPipe wrapper
+# MediaPipe wrapper (new Tasks API)
 # ---------------------------------------------------------------------------
 
 
 class LandmarkExtractor:
-    """Wraps MediaPipe Hands. One instance per process.
+    """Wraps MediaPipe ``HandLandmarker``. One instance per process.
 
     ``extract(frame_bgr)`` returns a normalized 63-dim vector for the
     most-confident hand, or ``None`` if no hand is detected. Left-hand
@@ -92,32 +101,63 @@ class LandmarkExtractor:
 
         with LandmarkExtractor() as ext:
             v = ext.extract(frame_bgr)
+
+    The constructor expects ``hand_landmarker.task`` to exist at
+    ``models/hand_landmarker.task`` (configurable via ``model_path``).
+    Run ``scripts/setup_models.py`` once to download it.
     """
 
     def __init__(
         self,
-        model_complexity: int = 1,
         min_detection_confidence: float = 0.5,
         min_tracking_confidence: float = 0.5,
+        min_hand_presence_confidence: float = 0.5,
         static_image_mode: bool = False,
+        model_path: Optional[Path] = None,
     ) -> None:
         # Lazy-import heavy deps so the pure helpers above can be
         # imported (and unit-tested) without pulling MediaPipe / cv2.
         import cv2  # noqa: WPS433
         import mediapipe as mp  # noqa: WPS433
+        from mediapipe.tasks import python as mp_python  # noqa: WPS433
+        from mediapipe.tasks.python import vision as mp_vision  # noqa: WPS433
 
         self._cv2 = cv2
-        # static_image_mode=False (default) is for video streams — uses
-        # cross-frame tracking for efficiency. Set True for processing
-        # batches of unrelated stills (e.g., the Kaggle ingest), where
-        # detection should run from scratch on every image.
-        self._hands = mp.solutions.hands.Hands(
-            static_image_mode=static_image_mode,
-            max_num_hands=2,  # detect up to 2 so we can pick the most confident
-            model_complexity=model_complexity,
-            min_detection_confidence=min_detection_confidence,
+        self._mp = mp
+        self._mp_vision = mp_vision
+
+        path = Path(model_path) if model_path is not None else HAND_LANDMARKER_MODEL
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"HandLandmarker model not found at {path}.\n"
+                "Run `python scripts/setup_models.py` to download it.",
+            )
+
+        # static_image_mode=False -> VIDEO mode with cross-frame tracking,
+        # for camera streams (collect.py, runtime).
+        # static_image_mode=True  -> IMAGE mode with fresh detection per
+        # call, for batches of unrelated stills (ingest_public.py).
+        self._is_video_mode = not static_image_mode
+        running_mode = (
+            mp_vision.RunningMode.VIDEO
+            if self._is_video_mode
+            else mp_vision.RunningMode.IMAGE
+        )
+
+        options = mp_vision.HandLandmarkerOptions(
+            base_options=mp_python.BaseOptions(model_asset_path=str(path)),
+            num_hands=2,  # detect up to 2 so we can pick the most confident
+            running_mode=running_mode,
+            min_hand_detection_confidence=min_detection_confidence,
+            min_hand_presence_confidence=min_hand_presence_confidence,
             min_tracking_confidence=min_tracking_confidence,
         )
+        self._detector = mp_vision.HandLandmarker.create_from_options(options)
+        # VIDEO mode requires a monotonically-increasing millisecond
+        # timestamp on every detect_for_video call. We use a wall-clock
+        # offset so timestamps look reasonable but only monotonicity
+        # matters.
+        self._start_ns = time.monotonic_ns()
 
     def extract(self, frame_bgr: np.ndarray) -> Optional[np.ndarray]:
         """Process one BGR camera frame, return canonical 63-dim vector or None."""
@@ -159,17 +199,28 @@ class LandmarkExtractor:
     ) -> Optional[tuple[np.ndarray, bool]]:
         """Run MediaPipe; return (coords, is_left) or None on no-hand."""
         frame_rgb = self._cv2.cvtColor(frame_bgr, self._cv2.COLOR_BGR2RGB)
-        results = self._hands.process(frame_rgb)
-        if not results.multi_hand_landmarks:
+        mp_image = self._mp.Image(
+            image_format=self._mp.ImageFormat.SRGB,
+            data=frame_rgb,
+        )
+
+        if self._is_video_mode:
+            timestamp_ms = (time.monotonic_ns() - self._start_ns) // 1_000_000
+            result = self._detector.detect_for_video(mp_image, timestamp_ms)
+        else:
+            result = self._detector.detect(mp_image)
+
+        if not result.hand_landmarks:
             return None
-        idx = _best_hand_index(results)
-        landmarks = results.multi_hand_landmarks[idx]
-        is_left = results.multi_handedness[idx].classification[0].label == "Left"
+
+        idx = _best_hand_index(result)
+        landmarks = result.hand_landmarks[idx]
+        is_left = result.handedness[idx][0].category_name == "Left"
         return _landmarks_to_array(landmarks), is_left
 
     def close(self) -> None:
         """Release MediaPipe resources."""
-        self._hands.close()
+        self._detector.close()
 
     def __enter__(self) -> "LandmarkExtractor":
         return self
@@ -183,15 +234,15 @@ class LandmarkExtractor:
 # ---------------------------------------------------------------------------
 
 
-def _best_hand_index(results) -> int:
-    """Index of the most-confident hand in a MediaPipe ``Hands`` result."""
-    scores = [hd.classification[0].score for hd in results.multi_handedness]
+def _best_hand_index(result) -> int:
+    """Index of the most-confident hand in a HandLandmarker result."""
+    scores = [hd[0].score for hd in result.handedness]
     return int(np.argmax(scores))
 
 
 def _landmarks_to_array(landmarks) -> np.ndarray:
-    """Convert a MediaPipe NormalizedLandmarkList to a (21, 3) float32 array."""
+    """Convert a list of NormalizedLandmark to a (21, 3) float32 array."""
     return np.array(
-        [[lm.x, lm.y, lm.z] for lm in landmarks.landmark],
+        [[lm.x, lm.y, lm.z] for lm in landmarks],
         dtype=np.float32,
     )

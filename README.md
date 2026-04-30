@@ -34,10 +34,16 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"            # development PC
 # pip install -e ".[pi]"           # on the Raspberry Pi
 
+python scripts/setup_models.py     # download the MediaPipe hand model (~13 MB, one-time)
+
 pytest                              # unit tests should pass
 ```
 
 Python ≥ 3.11 required.
+
+`setup_models.py` fetches `hand_landmarker.task` from Google's CDN
+into `models/`. The new MediaPipe Tasks API requires this file on
+disk; the script is idempotent (skips if already present).
 
 ## Collecting data
 

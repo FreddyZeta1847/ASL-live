@@ -26,6 +26,9 @@ MODELS_DIR: Path = REPO_ROOT / "models"
 LANDMARKS_DIR: Path = DATA_DIR / "landmarks"
 """Per-class landmark vectors: data/landmarks/<class>/<source>_<id>.npy."""
 
+HAND_LANDMARKER_MODEL: Path = MODELS_DIR / "hand_landmarker.task"
+"""MediaPipe HandLandmarker model file (~13 MB). Downloaded by scripts/setup_models.py."""
+
 
 # ---------------------------------------------------------------------------
 # Class set (feature 1, feature 2)
