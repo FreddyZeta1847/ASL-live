@@ -27,7 +27,8 @@
 │   │       └── phase-1-data-collection.md
 │   └── settings.local.json
 ├── scripts/
-│   └── __init__.py
+│   ├── __init__.py
+│   └── ingest_public.py
 ├── src/
 │   └── asl_live/
 │       ├── __init__.py

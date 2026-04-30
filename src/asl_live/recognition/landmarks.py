@@ -99,6 +99,7 @@ class LandmarkExtractor:
         model_complexity: int = 1,
         min_detection_confidence: float = 0.5,
         min_tracking_confidence: float = 0.5,
+        static_image_mode: bool = False,
     ) -> None:
         # Lazy-import heavy deps so the pure helpers above can be
         # imported (and unit-tested) without pulling MediaPipe / cv2.
@@ -106,8 +107,12 @@ class LandmarkExtractor:
         import mediapipe as mp  # noqa: WPS433
 
         self._cv2 = cv2
+        # static_image_mode=False (default) is for video streams — uses
+        # cross-frame tracking for efficiency. Set True for processing
+        # batches of unrelated stills (e.g., the Kaggle ingest), where
+        # detection should run from scratch on every image.
         self._hands = mp.solutions.hands.Hands(
-            static_image_mode=False,
+            static_image_mode=static_image_mode,
             max_num_hands=2,  # detect up to 2 so we can pick the most confident
             model_complexity=model_complexity,
             min_detection_confidence=min_detection_confidence,
