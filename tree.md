@@ -34,7 +34,8 @@
 │       ├── __init__.py
 │       ├── config.py
 │       ├── capture/
-│       │   └── __init__.py
+│       │   ├── __init__.py
+│       │   └── collect.py
 │       └── recognition/
 │           ├── __init__.py
 │           └── landmarks.py

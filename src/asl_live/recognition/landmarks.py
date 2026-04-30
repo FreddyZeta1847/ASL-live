@@ -129,6 +129,31 @@ class LandmarkExtractor:
             coords = _mirror(coords)
         return _normalize(coords)
 
+    def extract_with_raw(
+        self, frame_bgr: np.ndarray
+    ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        """Like ``extract`` but also returns the image-space landmarks.
+
+        Returns ``(image_coords, normalized_vector)`` where
+        ``image_coords`` is the original (21, 3) MediaPipe output in
+        normalized image coordinates ([0, 1] in x and y, actual depth
+        in z). Useful for drawing landmark overlays at their real
+        camera positions during interactive collection.
+        Returns ``None`` if no hand is detected or the frame is
+        degenerate.
+        """
+        result = self._run_mediapipe(frame_bgr)
+        if result is None:
+            return None
+        coords, is_left = result
+        raw = coords.copy()
+        if is_left:
+            coords = _mirror(coords)
+        normalized = _normalize(coords)
+        if normalized is None:
+            return None
+        return raw, normalized
+
     def _run_mediapipe(
         self, frame_bgr: np.ndarray
     ) -> Optional[tuple[np.ndarray, bool]]:
