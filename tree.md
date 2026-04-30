@@ -26,5 +26,20 @@
 │   │   └── phases/
 │   │       └── phase-1-data-collection.md
 │   └── settings.local.json
+├── scripts/
+│   └── __init__.py
+├── src/
+│   └── asl_live/
+│       ├── __init__.py
+│       ├── config.py
+│       ├── capture/
+│       │   └── __init__.py
+│       └── recognition/
+│           └── __init__.py
+├── tests/
+│   ├── __init__.py
+│   └── conftest.py
+├── .gitignore
 ├── README.md
+├── pyproject.toml
 └── tree.md
