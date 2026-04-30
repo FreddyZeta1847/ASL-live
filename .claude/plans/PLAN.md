@@ -8,65 +8,89 @@ demo at every checkpoint.
 
 ---
 
-## 0. Repository structure (target)
+## 0. Repository structure (target, annotated by phase)
+
+This is the *end-state* layout. ✅ marks files that already exist;
+otherwise the marker shows the phase that creates the file.
+Subpackage comments describe the role each module plays in the system.
+For the *current* on-disk layout (which lags behind this target), see
+[`tree.md`](../../tree.md) at the repo root.
 
 ```
 ASL-live/
-├── .claude/
-│   ├── CLAUDE.md
-│   ├── agents/
-│   ├── docs/
-│   │   ├── architecture.md
-│   │   ├── tech-stack.md
-│   │   ├── features/feature-N-<name>.md
-│   │   └── decisions/
-│   ├── plans/
-│   │   ├── PLAN.md              # this file
-│   │   ├── plan_zip.md          # condensed plan index
-│   │   ├── current-task.md
-│   │   └── phases/phase-N-<name>.md
-│   └── settings.local.json
-├── data/                        # collected datasets (gitignored)
-│   └── landmarks/<class>/*.npy
-├── models/                      # trained artifacts
-│   ├── mlp.onnx
-│   └── label_map.json
 ├── src/asl_live/
-│   ├── __init__.py
-│   ├── config.py                # paths, language enum, GPIO pins, thresholds
-│   ├── capture/
-│   │   └── collect.py           # data-collection CLI (PC)
-│   ├── train/
-│   │   └── train_mlp.py         # training script (PC)
-│   ├── recognition/
-│   │   ├── landmarks.py         # MediaPipe wrapper, normalization
-│   │   ├── classifier.py        # ONNX runtime inference
-│   │   └── debounce.py          # frame-stability commit logic
-│   ├── translation/
-│   │   └── translator.py        # Argos Translate wrapper
-│   ├── tts/
-│   │   └── speaker.py           # Piper wrapper, ALSA playback
-│   ├── ui/
-│   │   ├── lcd.py               # RPLCD wrapper, status formatting
-│   │   ├── buttons.py           # gpiozero buttons + state machine
-│   │   └── lang_menu.py         # audio language menu
-│   └── pipeline/
-│       └── main.py              # orchestrator: workers + queues
-├── tests/
-│   ├── test_debounce.py
-│   ├── test_landmarks.py
-│   └── test_lang_menu.py
-├── scripts/
-│   ├── demo_recognition.py      # PC live demo
-│   └── pi_run.sh                # Pi entrypoint
-├── pyproject.toml
-├── README.md
-└── tree.md
+│   ├── __init__.py                      ✅ phase 1
+│   ├── config.py                        ✅ phase 1   paths, classes, thresholds, GPIO pins
+│   │
+│   ├── recognition/                     "what does this gesture look like?"
+│   │   ├── landmarks.py                 ✅ phase 1   MediaPipe wrapper + normalization helpers
+│   │   ├── classifier.py                   phase 2   loads mlp.onnx, predict(landmarks) -> (label, conf)
+│   │   └── debounce.py                     phase 3   prediction stream -> commit events
+│   │
+│   ├── capture/                         interactive data collection
+│   │   └── collect.py                   ✅ phase 1   webcam UI, SPACE/DELETE samples
+│   │
+│   ├── train/                              phase 2   PC-only training stack
+│   │   └── train_mlp.py                              loads .npy -> MLP + XGBoost baseline -> mlp.onnx
+│   │
+│   ├── translation/                        phase 5   offline MT
+│   │   └── translator.py                             Argos wrapper with LRU cache + identity short-circuit
+│   │
+│   ├── tts/                                phase 5   offline speech synthesis
+│   │   └── speaker.py                                Piper wrapper with bounded drop-oldest queue
+│   │
+│   ├── ui/                              peripheral drivers
+│   │   ├── lcd.py                          phase 4   DFR0063 16x2 LCD over I2C, cell-diff render
+│   │   ├── buttons.py                      phase 6   gpiozero buttons -> event queue
+│   │   └── lang_menu.py                    phase 6   audio-only language menu + persistence
+│   │
+│   └── pipeline/                           phase 5+  full orchestrator
+│       └── main.py                                   workers, queues, lifecycle FSM, signal handlers
+│
+├── scripts/                             one-shot CLIs (not part of the runtime)
+│   ├── ingest_public.py                 ✅ phase 1   Kaggle ASL Alphabet -> landmark .npy
+│   ├── demo_recognition.py                 phase 3   PC live demo, no peripherals
+│   ├── setup_argos.py                      phase 5   install Argos packs offline at provisioning time
+│   └── asl-live.service                    phase 7   systemd unit for boot auto-start
+│
+├── tests/                               pytest, PC-only, no hardware
+│   ├── test_landmarks.py                ✅ phase 1   normalization helpers
+│   ├── test_debounce.py                    phase 3   debounce state machine
+│   └── test_lang_menu.py                   phase 6   menu state machine + atomic persistence
+│
+├── data/                                runtime datasets (gitignored)
+│   └── landmarks/<class>/*.npy                       e.g. kaggle_000123.npy, custom_000045_m.npy
+│
+├── models/                              training artifacts (gitignored)
+│   ├── mlp.onnx                            phase 2   the deployable model
+│   ├── label_map.json                      phase 2   {0: "A", ..., 25: "DELETE"}
+│   └── training_report.json                phase 2   hyperparams, metrics, confusion matrix, git SHA
+│
+├── .claude/                             project knowledge (see CLAUDE.md)
+│   ├── CLAUDE.md                                     project entry point
+│   ├── agents/                                       project-local subagent definitions
+│   ├── docs/
+│   │   ├── architecture.md                           system design (this file's companion)
+│   │   ├── tech-stack.md                             chosen technologies + rationale
+│   │   ├── features/feature-N-<name>.md              per-feature locked decisions
+│   │   └── decisions/                                ADRs (cross-cutting choices)
+│   └── plans/
+│       ├── PLAN.md                                   this file — phase roadmap
+│       ├── plan_zip.md                               condensed index of plan files
+│       ├── current-task.md                           pointer at the active task
+│       └── phases/phase-N-<name>.md                  per-phase implementation plan
+│
+├── pyproject.toml                       ✅ phase 1   PEP 621 + [dev] / [pi] install profiles
+├── .gitignore                           ✅ phase 1
+├── README.md                            ✅ phase 1   project overview + collection protocol
+└── tree.md                              ✅ phase 1   current-state filesystem map (regenerated on changes)
 ```
 
 **Two install profiles** in `pyproject.toml`:
-- `[dev]` — PC: mediapipe, opencv, torch, onnxruntime, argos-translate, piper-tts.
-- `[pi]` — Pi: same minus torch + adds RPLCD, gpiozero, smbus2.
+- `[dev]` — PC: mediapipe, opencv, torch, onnxruntime, argos-translate,
+  piper-tts, scikit-learn, xgboost, pytest.
+- `[pi]` — Pi: same base minus torch (training is PC-only) plus RPLCD,
+  gpiozero, smbus2.
 
 ---
 
