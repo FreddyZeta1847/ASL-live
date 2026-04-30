@@ -11,8 +11,8 @@ Per feature 2 (`.claude/docs/features/feature-2-data-collection.md`):
 
 Usage::
 
-    python -m asl_live.capture.collect --class SPACE --count 500
-    python -m asl_live.capture.collect --class DELETE --count 500
+    python scripts/collect.py --class SPACE --count 500
+    python scripts/collect.py --class DELETE --count 500
 
 Multiple sessions append (the script picks the next unused index by
 scanning existing files), so collecting in batches is fine.

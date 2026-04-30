@@ -5,7 +5,7 @@
 
 **Modules:**
 - `scripts/ingest_public.py` — one-shot preprocessor for public dataset.
-- `src/asl_live/capture/collect.py` — interactive collection of custom gestures.
+- `scripts/collect.py` — interactive collection of custom gestures.
 
 ## Decisions
 

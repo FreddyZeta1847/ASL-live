@@ -27,8 +27,6 @@ ASL-live/
 │   │   ├── classifier.py                   phase 2   loads mlp.onnx, predict(landmarks) -> (label, conf)
 │   │   └── debounce.py                     phase 3   prediction stream -> commit events
 │   │
-│   ├── capture/                         interactive data collection
-│   │   └── collect.py                   ✅ phase 1   webcam UI, SPACE/DELETE samples
 │   │
 │   ├── train/                              phase 2   PC-only training stack
 │   │   └── train_mlp.py                              loads .npy -> MLP + XGBoost baseline -> mlp.onnx
@@ -49,6 +47,8 @@ ASL-live/
 │
 ├── scripts/                             one-shot CLIs (not part of the runtime)
 │   ├── ingest_public.py                 ✅ phase 1   Kaggle ASL Alphabet -> landmark .npy
+│   ├── collect.py                       ✅ phase 1   interactive webcam collector for SPACE/DELETE
+│   ├── setup_models.py                  ✅ phase 1   one-shot download of MediaPipe hand_landmarker.task
 │   ├── demo_recognition.py                 phase 3   PC live demo, no peripherals
 │   ├── setup_argos.py                      phase 5   install Argos packs offline at provisioning time
 │   └── asl-live.service                    phase 7   systemd unit for boot auto-start

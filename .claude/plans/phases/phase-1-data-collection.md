@@ -70,7 +70,7 @@ per kept class (after no-hand drops).
 
 | File | Purpose |
 |---|---|
-| `src/asl_live/capture/collect.py` | CLI: `python -m asl_live.capture.collect --class SPACE --count 500`. OpenCV preview with class label, sample counter, 21-landmark overlay. Auto-capture on stable hand for 5 frames + 10-frame cooldown. Saves `.npy` + mirrored copy. Q to quit |
+| `scripts/collect.py` | CLI: `python -m asl_live.capture.collect --class SPACE --count 500`. OpenCV preview with class label, sample counter, 21-landmark overlay. Auto-capture on stable hand for 5 frames + 10-frame cooldown. Saves `.npy` + mirrored copy. Q to quit |
 
 Acceptance: collecting 10 SPACE samples saves 20 `.npy` files (10
 original + 10 mirrored), each loads back to shape `(63,)`.

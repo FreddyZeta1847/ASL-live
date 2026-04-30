@@ -28,15 +28,13 @@
 │   └── settings.local.json
 ├── scripts/
 │   ├── __init__.py
+│   ├── collect.py
 │   ├── ingest_public.py
 │   └── setup_models.py
 ├── src/
 │   └── asl_live/
 │       ├── __init__.py
 │       ├── config.py
-│       ├── capture/
-│       │   ├── __init__.py
-│       │   └── collect.py
 │       └── recognition/
 │           ├── __init__.py
 │           └── landmarks.py

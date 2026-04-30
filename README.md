@@ -95,8 +95,8 @@ For SPACE (open palm with fingers spread) and DELETE (closed fist with
 thumb pointing down), collect ~500 samples each from your own camera:
 
 ```bash
-python -m asl_live.capture.collect --class SPACE  --count 500
-python -m asl_live.capture.collect --class DELETE --count 500
+python scripts/collect.py --class SPACE  --count 500
+python scripts/collect.py --class DELETE --count 500
 ```
 
 The preview window shows:
