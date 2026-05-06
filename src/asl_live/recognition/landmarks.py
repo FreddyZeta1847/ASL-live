@@ -181,6 +181,12 @@ class LandmarkExtractor:
         camera positions during interactive collection.
         Returns ``None`` if no hand is detected or the frame is
         degenerate.
+
+        Why this is a separate method (and not always returned by
+        ``extract``): the live recognizer never draws on screen, so it
+        calls ``extract`` to skip the extra raw-coords copy on every
+        frame. The collector needs both raw (to draw the 21 dots) and
+        normalized (to save), so it calls this variant.
         """
         result = self._run_mediapipe(frame_bgr)
         if result is None:
