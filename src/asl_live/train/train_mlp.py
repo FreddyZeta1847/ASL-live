@@ -32,6 +32,7 @@ from asl_live.train.dataset import (
     compute_class_weights,
     make_splits,
 )
+from asl_live.train.export import export_run
 from asl_live.train.metrics import (
     MACRO_F1_THRESHOLD,
     OFF_DIAGONAL_THRESHOLD,
@@ -388,16 +389,57 @@ def main() -> None:
 
     passed, failures = check_acceptance_bar(cm, class_names)
     print()
-    if passed:
-        print(f"[PASS] Macro-F1 {score:.4f} >= {MACRO_F1_THRESHOLD:.2f}")
-        print(f"[PASS] All off-diagonal cells <= {OFF_DIAGONAL_THRESHOLD * 100:.0f}% of row total")
-        print("(ONNX export + label_map + training_report land in commit 5)")
-    else:
+    if not passed:
         print("ACCEPTANCE BAR FAILED:")
         for f in failures:
             print(f"  - {f}")
         print("\nDid not export. Iterate per feature-3 §3.6 (collect more data, swap a confusing gesture, etc.)")
         sys.exit(1)
+
+    print(f"[PASS] Macro-F1 {score:.4f} >= {MACRO_F1_THRESHOLD:.2f}")
+    print(f"[PASS] All off-diagonal cells <= {OFF_DIAGONAL_THRESHOLD * 100:.0f}% of row total")
+
+    # Build the per-run report payload and export ONNX + sidecars.
+    hyperparams_dict = {
+        "epochs": args.epochs,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "batch_size": args.batch_size,
+        "seed": args.seed,
+        "patience_stop": args.patience_stop,
+        "patience_lr": args.patience_lr,
+        "lr_factor": args.lr_factor,
+        "noise_std": args.noise_std,
+        "scale_range": [args.scale_lo, args.scale_hi],
+        "trans_range": args.trans_range,
+        "aug_prob": args.aug_prob,
+    }
+    dataset_stats = {
+        "total": int(len(dataset)),
+        "num_classes": int(dataset.num_classes),
+        "per_class": {name: int(counts[i]) for i, name in enumerate(class_names)},
+        "split_sizes": {
+            "train": len(train_idx),
+            "val": len(val_idx),
+            "test": len(test_idx),
+        },
+    }
+    metrics_dict = {
+        "test_loss": float(test_loss),
+        "test_acc": float(test_acc),
+        "macro_f1": float(score),
+        "per_class_f1": f1_by_class,
+        "confusion_matrix": cm.tolist(),
+    }
+    run_dir = export_run(
+        model,
+        label_map=dataset.label_map,
+        hyperparams=hyperparams_dict,
+        dataset_stats=dataset_stats,
+        metrics=metrics_dict,
+    )
+    print(f"\nWrote {run_dir}/{{mlp.onnx, label_map.json, training_report.json}}")
+    print("Updated models/mlp.onnx + models/label_map.json -> latest")
 
 
 if __name__ == "__main__":
