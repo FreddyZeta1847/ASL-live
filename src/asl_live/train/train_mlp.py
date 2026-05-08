@@ -1,14 +1,14 @@
 """Train the MLP classifier on data/landmarks/.
 
-Phase-2 commit 3: end-to-end training loop with class-weighted
-cross-entropy, Adam, ReduceLROnPlateau, and early stopping.
-Hyperparameters default to feature-3 §3.5 values; CLI flags exist for
-experimentation.
+End-to-end training loop with class-weighted cross-entropy, Adam,
+ReduceLROnPlateau, and early stopping. Hyperparameters default to
+feature-3 §3.5 values; CLI flags exist for experimentation.
 
-Metrics + acceptance-bar check (macro-F1, confusion matrix) and ONNX
-export are intentionally NOT here — they land in commit 4 and 5
-respectively. This commit's job is to prove the training loop converges
-on real data; correctness validation lands next.
+After training, evaluates the best checkpoint on the held-out test
+set, prints macro-F1 + per-class F1 + confusion matrix, and runs the
+phase-2 -> phase-3 acceptance gate (feature-3 §3.6). Exits non-zero
+if the gate fails — the run does not proceed to ONNX export
+(commit 5) until both bars are met.
 
 Run as a module so the package import path resolves cleanly::
 
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import sys
 import time
 
 import numpy as np
@@ -30,6 +31,15 @@ from asl_live.train.dataset import (
     LandmarkDataset,
     compute_class_weights,
     make_splits,
+)
+from asl_live.train.metrics import (
+    MACRO_F1_THRESHOLD,
+    OFF_DIAGONAL_THRESHOLD,
+    check_acceptance_bar,
+    confusion_matrix,
+    format_confusion_matrix,
+    macro_f1,
+    per_class_f1,
 )
 from asl_live.train.model import MLP
 
@@ -155,7 +165,7 @@ def evaluate(
     criterion: nn.Module,
     device: torch.device,
 ) -> tuple[float, float]:
-    """Eval loop. Returns (mean_loss, accuracy)."""
+    """Eval loop used per-epoch on the val split. Returns (mean_loss, accuracy)."""
     model.eval()
     total_loss = 0.0
     total_n = 0
@@ -171,6 +181,27 @@ def evaluate(
         total_n += bs
         correct += (logits.argmax(dim=1) == ys).sum().item()
     return total_loss / total_n, correct / total_n
+
+
+@torch.no_grad()
+def collect_predictions(
+    model: nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Run the model and return (preds, targets) as 1-D int arrays.
+
+    Used post-training on the test set to feed the metrics module.
+    """
+    model.eval()
+    all_preds: list[np.ndarray] = []
+    all_targets: list[np.ndarray] = []
+    for xs, ys in loader:
+        xs = xs.to(device, non_blocking=True)
+        logits = model(xs)
+        all_preds.append(logits.argmax(dim=1).cpu().numpy())
+        all_targets.append(ys.numpy())
+    return np.concatenate(all_preds), np.concatenate(all_targets)
 
 
 # ---------------------------------------------------------------------------
@@ -327,12 +358,39 @@ def main() -> None:
         patience_stop=args.patience_stop,
     )
 
-    # Restore best checkpoint and quick-look on the test set.
-    # Real metrics (macro-F1, confusion matrix, acceptance bar) land in commit 4.
+    # Restore best checkpoint, then full test-set evaluation + acceptance gate.
     model.load_state_dict(best_state)
     test_loss, test_acc = evaluate(model, test_loader, criterion, device)
     print(f"\nTest loss: {test_loss:.4f}  Test acc: {test_acc:.4f}")
-    print("(macro-F1, per-class F1, confusion matrix, and acceptance-bar check land in commit 4)")
+
+    print("\n=== Test-set classification report ===")
+    preds, targets = collect_predictions(model, test_loader, device)
+    class_names = tuple(dataset.label_map[i] for i in range(dataset.num_classes))
+    cm = confusion_matrix(targets, preds, n_classes=dataset.num_classes)
+
+    f1_by_class = per_class_f1(cm, class_names)
+    print("\nPer-class F1:")
+    for name in class_names:
+        print(f"  {name:>8}  {f1_by_class[name]:.4f}")
+
+    score = macro_f1(cm)
+    print(f"\nMacro-F1: {score:.4f}")
+
+    print("\nConfusion matrix (rows = actual, cols = predicted):")
+    print(format_confusion_matrix(cm, class_names))
+
+    passed, failures = check_acceptance_bar(cm, class_names)
+    print()
+    if passed:
+        print(f"[PASS] Macro-F1 {score:.4f} >= {MACRO_F1_THRESHOLD:.2f}")
+        print(f"[PASS] All off-diagonal cells <= {OFF_DIAGONAL_THRESHOLD * 100:.0f}% of row total")
+        print("(ONNX export + label_map + training_report land in commit 5)")
+    else:
+        print("ACCEPTANCE BAR FAILED:")
+        for f in failures:
+            print(f"  - {f}")
+        print("\nDid not export. Iterate per feature-3 §3.6 (collect more data, swap a confusing gesture, etc.)")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
