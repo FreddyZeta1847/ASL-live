@@ -27,6 +27,9 @@
 │   │       ├── phase-1-data-collection.md
 │   │       └── phase-2-training.md
 │   └── settings.local.json
+├── issue/
+│   ├── 001-windows-defender-throttles-bulk-npy-load.md
+│   └── README.md
 ├── scripts/
 │   ├── __init__.py
 │   ├── collect.py
