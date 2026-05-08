@@ -41,6 +41,7 @@
 │       ├── config.py
 │       ├── recognition/
 │       │   ├── __init__.py
+│       │   ├── classifier.py
 │       │   └── landmarks.py
 │       └── train/
 │           ├── __init__.py
@@ -54,6 +55,7 @@
 │   ├── __init__.py
 │   ├── conftest.py
 │   ├── test_augment.py
+│   ├── test_classifier.py
 │   ├── test_dataset.py
 │   ├── test_export.py
 │   ├── test_landmarks.py
