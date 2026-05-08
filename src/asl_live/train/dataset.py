@@ -123,8 +123,10 @@ def make_splits(
 
         n = len(cls_indices)
         n_train = int(round(n * ratios[0]))
-        n_val = int(round(n * ratios[1]))
-        # Anything left → test. Absorbs rounding remainder cleanly.
+        # Cap n_val to leave at least 0 for test. Without the cap, small-class
+        # rounding (e.g. n=5: round(4.0) + round(0.5) = 4 + 1 = 5) can leave
+        # the test slice empty, which surfaces later as F1=0 for that class.
+        n_val = min(int(round(n * ratios[1])), max(0, n - n_train))
         train_idx.extend(cls_indices[:n_train].tolist())
         val_idx.extend(cls_indices[n_train : n_train + n_val].tolist())
         test_idx.extend(cls_indices[n_train + n_val :].tolist())

@@ -108,9 +108,10 @@ class RandomAugment:
         if self.trans_range == 0:
             return x
         gate = self._bernoulli_gate(x.shape[0])
-        trans = torch.empty(x.shape[0], 1, LANDMARK_DIMS).uniform_(
+        # Translation is on x and y only — z is depth, not in the image plane.
+        # Sample only the (x, y) slice; z stays at zero.
+        trans = torch.zeros(x.shape[0], 1, LANDMARK_DIMS)
+        trans[..., :2].uniform_(
             -self.trans_range, self.trans_range, generator=self.generator
         )
-        # Translation is on x and y only — z is depth, not in the image plane.
-        trans[..., 2] = 0
         return x + gate * trans

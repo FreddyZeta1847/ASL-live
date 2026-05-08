@@ -198,9 +198,10 @@ def collect_predictions(
     all_targets: list[np.ndarray] = []
     for xs, ys in loader:
         xs = xs.to(device, non_blocking=True)
+        ys = ys.to(device, non_blocking=True)
         logits = model(xs)
         all_preds.append(logits.argmax(dim=1).cpu().numpy())
-        all_targets.append(ys.numpy())
+        all_targets.append(ys.cpu().numpy())
     return np.concatenate(all_preds), np.concatenate(all_targets)
 
 
@@ -329,7 +330,13 @@ def main() -> None:
     n_params = sum(p.numel() for p in model.parameters())
     print(f"Model: MLP, {n_params:,} parameters")
 
-    class_weights = compute_class_weights(counts).to(device)
+    # Class weights are calibrated on the train split (not the full dataset)
+    # so the loss reflects what the model actually sees during training.
+    train_counts = np.bincount(
+        dataset.labels[np.array(train_idx)],
+        minlength=dataset.num_classes,
+    )
+    class_weights = compute_class_weights(train_counts).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = torch.optim.Adam(
         model.parameters(),
