@@ -136,7 +136,45 @@ def test_dataset_bad_vector_shape_raises(tmp_path: Path) -> None:
     bad_path = next((tmp_path / "A").glob("*.npy"))
     np.save(bad_path, np.zeros(42, dtype=np.float32))
     with pytest.raises(ValueError):
-        LandmarkDataset(root=tmp_path)
+        LandmarkDataset(root=tmp_path, use_cache=False)
+
+
+# ---------------------------------------------------------------------------
+# Cache behavior
+# ---------------------------------------------------------------------------
+
+
+def test_cache_is_created_on_first_load(tmp_path: Path) -> None:
+    _make_fake_landmarks(tmp_path, samples_per_class=4)
+    cache = tmp_path / "_cache.npz"
+    LandmarkDataset(root=tmp_path, cache_path=cache)
+    assert cache.is_file()
+
+
+def test_cache_reload_returns_same_data(tmp_path: Path) -> None:
+    _make_fake_landmarks(tmp_path, samples_per_class=4)
+    cache = tmp_path / "_cache.npz"
+    ds_fresh = LandmarkDataset(root=tmp_path, cache_path=cache)
+    ds_cached = LandmarkDataset(root=tmp_path, cache_path=cache)
+    assert torch.equal(ds_fresh._X, ds_cached._X)
+    assert torch.equal(ds_fresh._y, ds_cached._y)
+
+
+def test_cache_invalidated_on_file_addition(tmp_path: Path) -> None:
+    _make_fake_landmarks(tmp_path, samples_per_class=4)
+    cache = tmp_path / "_cache.npz"
+    ds_before = LandmarkDataset(root=tmp_path, cache_path=cache)
+    n_before = len(ds_before)
+    np.save(tmp_path / "A" / "new_sample.npy", np.zeros(LANDMARK_FEATURES, dtype=np.float32))
+    ds_after = LandmarkDataset(root=tmp_path, cache_path=cache)
+    assert len(ds_after) == n_before + 1
+
+
+def test_use_cache_false_does_not_create_cache(tmp_path: Path) -> None:
+    _make_fake_landmarks(tmp_path, samples_per_class=3)
+    cache = tmp_path / "_cache.npz"
+    LandmarkDataset(root=tmp_path, cache_path=cache, use_cache=False)
+    assert not cache.exists()
 
 
 # ---------------------------------------------------------------------------
