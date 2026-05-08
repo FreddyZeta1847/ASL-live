@@ -24,7 +24,8 @@
 │   │   ├── current-task.md
 │   │   ├── plan_zip.md
 │   │   └── phases/
-│   │       └── phase-1-data-collection.md
+│   │       ├── phase-1-data-collection.md
+│   │       └── phase-2-training.md
 │   └── settings.local.json
 ├── scripts/
 │   ├── __init__.py
@@ -35,12 +36,16 @@
 │   └── asl_live/
 │       ├── __init__.py
 │       ├── config.py
-│       └── recognition/
+│       ├── recognition/
+│       │   ├── __init__.py
+│       │   └── landmarks.py
+│       └── train/
 │           ├── __init__.py
-│           └── landmarks.py
+│           └── dataset.py
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py
+│   ├── test_dataset.py
 │   └── test_landmarks.py
 ├── .gitignore
 ├── README.md
