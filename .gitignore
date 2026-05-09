@@ -41,6 +41,7 @@ Thumbs.db
 # Project artifacts (regenerable, large)
 data/
 models/
+logs/
 
 # Claude Code local-only settings
 .claude/settings.local.json

@@ -74,3 +74,35 @@ I/O collapses after a few thousand operations. And: when a long-running
 script appears silent, suspect stdout buffering before suspecting a
 hang. Use `python -u` or `flush=True` on early prints during
 development.
+
+## Follow-up — 2026-05-09
+
+First end-to-end training run measured the real load time on the full
+~113 k dataset:
+
+```
+loaded   5000/112966 in  101.7s (   49 files/s)   ← already throttled from line 1
+loaded  20000/112966 in  354.0s (   57 files/s)
+loaded  50000/112966 in  939.0s (   53 files/s)
+loaded 100000/112966 in 2352.4s (   43 files/s)   ← rate is now decaying
+loaded 112966/112966 in 2755.0s ≈ 46 min
+```
+
+Two updates to the original write-up:
+
+1. **The ~10 min projection was wrong by ~5×.** The throttle hits
+   immediately (~49 files/s from byte zero) and the rate *decays* over
+   time rather than starting fast and cliffing. Real cost of a
+   cache-cold first run: **~46 min, not ~10**. Plan accordingly.
+2. **The "silent for 25+ min" symptom recurred** because
+   `_load_records` had no progress logging — the issue-001 instrumentation
+   was scratched into a debug session and never landed. Patched in this
+   commit: `print(...)` every 5 000 files with `flush=True`. Now the
+   slow load is visible, not indistinguishable from a hang.
+
+Mitigation, in increasing order of cost: (a) add a Windows Defender
+exclusion on `C:\…\ASL-live\data\` — fastest fix, takes 10 s in
+Settings; (b) parallelize `_load_records` with a `ThreadPoolExecutor` —
+~4–8× speedup for free on Windows since the bottleneck is per-file
+syscall latency, not CPU; (c) keep relying on the cache, accept the
+one-time 46 min cost when it invalidates.

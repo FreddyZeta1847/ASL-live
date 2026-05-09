@@ -200,11 +200,19 @@ class LandmarkDataset(Dataset):
     @staticmethod
     def _load_records(
         records: list[tuple[Path, int]],
+        *,
+        log_every: int = 5_000,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Eager-load all records into one (N, 63) float32 tensor."""
+        import time
+
         n = len(records)
         X = np.empty((n, LANDMARK_FEATURES), dtype=np.float32)
         y = np.empty(n, dtype=np.int64)
+        # Progress logging matters here because Windows Defender throttles
+        # bulk np.load (issue/001): without visible progress a slow load
+        # is indistinguishable from a hang.
+        t0 = time.monotonic()
         for i, (path, label) in enumerate(records):
             vec = np.load(path)
             if vec.shape != (LANDMARK_FEATURES,):
@@ -213,6 +221,15 @@ class LandmarkDataset(Dataset):
                 )
             X[i] = vec
             y[i] = label
+            if log_every and (i + 1) % log_every == 0:
+                elapsed = time.monotonic() - t0
+                rate = (i + 1) / elapsed if elapsed > 0 else 0.0
+                print(
+                    f"  loaded {i + 1:>6}/{n} in {elapsed:6.1f}s ({rate:>5.0f} files/s)",
+                    flush=True,
+                )
+        elapsed = time.monotonic() - t0
+        print(f"  loaded {n}/{n} in {elapsed:.1f}s", flush=True)
         return torch.from_numpy(X), torch.from_numpy(y)
 
     # -- cache ---------------------------------------------------------------
