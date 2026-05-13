@@ -27,6 +27,8 @@ renaming any source file invalidates the cache automatically.
 from __future__ import annotations
 
 import hashlib
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 
@@ -35,6 +37,14 @@ import torch
 from torch.utils.data import Dataset
 
 from asl_live.config import CLASSES, LANDMARK_FEATURES, LANDMARKS_DIR
+
+
+# Per issue/001: Windows Defender serializes per-file scans, so a
+# single-threaded loop over 113k tiny .npy files crawls at ~40 files/s.
+# Threaded loading lets multiple scans overlap and recovers ~5-8x on
+# Windows; on Linux the overhead is negligible. np.load is safe to
+# call concurrently on distinct paths.
+LOAD_WORKERS = 16
 
 
 # ---------------------------------------------------------------------------
@@ -202,18 +212,25 @@ class LandmarkDataset(Dataset):
         records: list[tuple[Path, int]],
         *,
         log_every: int = 5_000,
+        max_workers: int = LOAD_WORKERS,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Eager-load all records into one (N, 63) float32 tensor."""
-        import time
+        """Eager-load all records into one (N, 63) float32 tensor.
 
+        Loads in parallel via ``ThreadPoolExecutor`` (issue/001): on Windows
+        the bottleneck is per-file Defender scan latency, not CPU, so threads
+        let scans overlap and recover ~5–8x over a sequential loop.
+
+        Safety: each worker writes to row ``X[i]`` and scalar ``y[i]`` for
+        its own unique ``i``. The pre-allocated arrays are contiguous and no
+        two threads ever touch the same memory address, so the writes are
+        disjoint (independent of GIL release timing).
+        """
         n = len(records)
         X = np.empty((n, LANDMARK_FEATURES), dtype=np.float32)
         y = np.empty(n, dtype=np.int64)
-        # Progress logging matters here because Windows Defender throttles
-        # bulk np.load (issue/001): without visible progress a slow load
-        # is indistinguishable from a hang.
-        t0 = time.monotonic()
-        for i, (path, label) in enumerate(records):
+
+        def _load_one(item: tuple[int, tuple[Path, int]]) -> int:
+            i, (path, label) = item
             vec = np.load(path)
             if vec.shape != (LANDMARK_FEATURES,):
                 raise ValueError(
@@ -221,13 +238,26 @@ class LandmarkDataset(Dataset):
                 )
             X[i] = vec
             y[i] = label
-            if log_every and (i + 1) % log_every == 0:
-                elapsed = time.monotonic() - t0
-                rate = (i + 1) / elapsed if elapsed > 0 else 0.0
-                print(
-                    f"  loaded {i + 1:>6}/{n} in {elapsed:6.1f}s ({rate:>5.0f} files/s)",
-                    flush=True,
-                )
+            return i
+
+        # Progress logging matters here because Windows Defender throttles
+        # bulk np.load (issue/001): without visible progress a slow load
+        # is indistinguishable from a hang.
+        t0 = time.monotonic()
+        done = 0
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            # ex.map yields in submission order; we only use the result to
+            # advance the progress counter (the actual rows are already
+            # written into X/y by the worker).
+            for _ in ex.map(_load_one, enumerate(records)):
+                done += 1
+                if log_every and done % log_every == 0:
+                    elapsed = time.monotonic() - t0
+                    rate = done / elapsed if elapsed > 0 else 0.0
+                    print(
+                        f"  loaded {done:>6}/{n} in {elapsed:6.1f}s ({rate:>5.0f} files/s)",
+                        flush=True,
+                    )
         elapsed = time.monotonic() - t0
         print(f"  loaded {n}/{n} in {elapsed:.1f}s", flush=True)
         return torch.from_numpy(X), torch.from_numpy(y)

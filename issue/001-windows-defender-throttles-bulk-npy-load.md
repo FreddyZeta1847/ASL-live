@@ -106,3 +106,19 @@ Settings; (b) parallelize `_load_records` with a `ThreadPoolExecutor` —
 ~4–8× speedup for free on Windows since the bottleneck is per-file
 syscall latency, not CPU; (c) keep relying on the cache, accept the
 one-time 46 min cost when it invalidates.
+
+## Follow-up — 2026-05-14
+
+**Mitigation (a) is blocked** — the dev machine is on a managed-admin
+profile that disables user-added Defender exclusions.
+
+**Mitigation (b) is now shipped.** `_load_records` uses
+`ThreadPoolExecutor(max_workers=16)` so multiple Defender scans overlap.
+Each worker writes a disjoint row of the pre-allocated `(N, 63)` array,
+so there is no shared-mutable-state contention. Reviewed by
+`ml-python-expert`; findings were all LOW (one docstring clarification,
+applied). The cached fast path (<1 s) is unchanged — this only helps
+the cache-cold rebuild that happens after a dataset edit.
+
+Real measured speedup will be recorded here once the next cache-cold
+rebuild runs (triggered by the upcoming M/N collection in phase 2).
