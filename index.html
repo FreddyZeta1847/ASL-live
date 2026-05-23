@@ -1,0 +1,1099 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASL-live &mdash; offline sign-to-speech device</title>
+  <meta name="description" content="Offline ASL alphabet to spoken translation on a Raspberry Pi 5. MediaPipe landmarks, a small MLP, Argos Translate, and Piper TTS &mdash; no internet, no phone." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+
+  <style>
+    :root {
+      --bg: #FAFAF7;
+      --surface: #FFFFFF;
+      --surface-2: #F3F0E8;
+      --border: #E8E4DB;
+      --text: #1A1A1A;
+      --text-2: #5A5A5A;
+      --text-3: #8A8A8A;
+      --navy: #1A3A5C;
+      --navy-2: #2D5A8F;
+      --orange: #E87722;
+      --orange-soft: #FBE6D2;
+      --green: #2F7A4F;
+      --serif: "Fraunces", ui-serif, Georgia, serif;
+      --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+      --container: 1080px;
+      --radius: 14px;
+      --radius-sm: 8px;
+      --shadow-1: 0 1px 2px rgba(26, 26, 26, 0.04), 0 2px 8px rgba(26, 26, 26, 0.04);
+      --shadow-2: 0 4px 12px rgba(26, 58, 92, 0.08), 0 12px 28px rgba(26, 58, 92, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--text);
+      background: var(--bg);
+      font-size: 17px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    h1, h2, h3, h4 { font-family: var(--serif); font-weight: 500; letter-spacing: -0.01em; margin: 0; }
+    h1 { font-size: clamp(48px, 7vw, 88px); line-height: 1.02; letter-spacing: -0.03em; }
+    h2 { font-size: clamp(30px, 4vw, 44px); line-height: 1.15; letter-spacing: -0.02em; }
+    h3 { font-size: clamp(20px, 2.4vw, 26px); line-height: 1.25; font-weight: 600; }
+    h4 { font-size: 17px; font-weight: 600; }
+    p { margin: 0 0 1em; color: var(--text-2); }
+    p strong, li strong { color: var(--text); font-weight: 600; }
+    code, kbd { font-family: var(--mono); font-size: 0.92em; background: var(--surface-2); padding: 2px 6px; border-radius: 4px; color: var(--navy); }
+    a { color: var(--navy); text-decoration: none; border-bottom: 1px solid currentColor; }
+    a:hover { color: var(--orange); }
+
+    /* ---------- layout ---------- */
+    .container { max-width: var(--container); margin: 0 auto; padding: 0 28px; }
+    section { padding: 88px 0; border-top: 1px solid var(--border); }
+    section:first-of-type { border-top: none; }
+
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 18px;
+    }
+    .lede { font-size: 19px; color: var(--text-2); max-width: 60ch; }
+
+    /* ---------- nav ---------- */
+    .topnav {
+      position: sticky; top: 0; z-index: 50;
+      backdrop-filter: saturate(140%) blur(10px);
+      background: rgba(250, 250, 247, 0.82);
+      border-bottom: 1px solid var(--border);
+    }
+    .topnav-inner {
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 14px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 24px;
+    }
+    .brand { font-family: var(--serif); font-weight: 600; font-size: 18px; letter-spacing: -0.01em; border: 0; }
+    .brand .dot { color: var(--orange); }
+    .navlinks { display: flex; gap: 22px; font-size: 14px; }
+    .navlinks a { color: var(--text-2); border: 0; font-weight: 500; }
+    .navlinks a:hover { color: var(--navy); }
+    @media (max-width: 720px) { .navlinks { display: none; } }
+
+    /* ---------- hero ---------- */
+    .hero { padding: 112px 0 96px; border-top: 0; }
+    .hero h1 .accent { color: var(--orange); font-style: italic; font-weight: 400; }
+    .hero .sub { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(20px, 2.2vw, 26px); color: var(--text-2); margin-top: 14px; max-width: 26ch; }
+    .hero .meta { margin-top: 28px; font-size: 15px; color: var(--text-3); max-width: 60ch; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 32px; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--border);
+      font-size: 13px; font-weight: 500; color: var(--text-2);
+    }
+    .badge .swatch { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
+
+    /* ---------- generic cards ---------- */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow-1);
+    }
+    .grid { display: grid; gap: 20px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    @media (max-width: 820px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    /* ---------- pipeline svg ---------- */
+    .pipeline-card { padding: 32px 24px; }
+    .pipeline-svg { width: 100%; height: auto; display: block; }
+
+    .pipe-node rect { fill: var(--surface); stroke: var(--navy); stroke-width: 1.4; }
+    .pipe-node.recog rect { stroke: var(--orange); }
+    .pipe-node text.t1 { font-family: var(--sans); font-size: 13px; font-weight: 600; fill: var(--text); }
+    .pipe-node text.t2 { font-family: var(--mono); font-size: 10px; fill: var(--text-3); }
+
+    .pipe-arrow { fill: none; stroke: var(--text-3); stroke-width: 1.4; }
+    .pipe-flow { fill: var(--orange); }
+    @keyframes flow {
+      0%   { offset-distance: 0%; opacity: 0; }
+      8%   { opacity: 1; }
+      92%  { opacity: 1; }
+      100% { offset-distance: 100%; opacity: 0; }
+    }
+    .flow-dot {
+      fill: var(--orange);
+      offset-rotate: 0deg;
+      animation: flow 3.6s linear infinite;
+    }
+
+    /* ---------- AI section ---------- */
+    .ai-sub { margin-top: 56px; }
+    .ai-sub h3 .num {
+      display: inline-block; min-width: 2.2em;
+      font-family: var(--mono); font-size: 14px; color: var(--orange);
+      font-weight: 500; letter-spacing: 0.08em;
+      vertical-align: middle;
+    }
+
+    .compare {
+      display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; align-items: stretch;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .compare .col { padding: 26px; }
+    .compare .col.bad { background: linear-gradient(180deg, rgba(232, 119, 34, 0.04), transparent 60%); }
+    .compare .col.good { background: linear-gradient(180deg, rgba(47, 122, 79, 0.05), transparent 60%); }
+    .compare .vs {
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono); font-size: 12px; color: var(--text-3);
+      writing-mode: vertical-rl; transform: rotate(180deg);
+      padding: 0 12px; border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+      letter-spacing: 0.2em;
+    }
+    .compare .tag { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.15em; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; font-weight: 500; }
+    .compare .tag.bad  { color: #9a4818; background: var(--orange-soft); }
+    .compare .tag.good { color: #1d5634; background: #DCEEDE; }
+    .compare ul { padding-left: 18px; margin: 12px 0 0; }
+    .compare li { margin: 6px 0; color: var(--text-2); font-size: 15px; }
+    @media (max-width: 720px) {
+      .compare { grid-template-columns: 1fr; }
+      .compare .vs { writing-mode: horizontal-tb; transform: none; padding: 10px; border: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    }
+
+    /* ---------- hand keypoints ---------- */
+    .hand-card { display: grid; grid-template-columns: 1.1fr 1fr; gap: 28px; align-items: center; }
+    @media (max-width: 820px) { .hand-card { grid-template-columns: 1fr; } }
+    .hand-svg { width: 100%; height: auto; max-height: 380px; }
+    .kp { fill: var(--orange); stroke: white; stroke-width: 1.4; }
+    .kp.wrist { fill: var(--navy); r: 7; }
+    .bone { stroke: var(--navy); stroke-width: 2; fill: none; opacity: 0.55; stroke-linecap: round; }
+    .kp-label { font-family: var(--mono); font-size: 9px; fill: var(--text-3); }
+
+    .norm-steps { display: grid; gap: 14px; }
+    .norm-step {
+      display: grid; grid-template-columns: 36px 1fr; gap: 14px; align-items: start;
+    }
+    .norm-step .n {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--navy); color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono); font-size: 13px; font-weight: 500;
+    }
+    .norm-step h4 { margin-bottom: 4px; }
+    .norm-step p { margin: 0; font-size: 15px; }
+
+    /* ---------- MLP layer diagram ---------- */
+    .mlp-card { padding: 36px 24px 28px; }
+    .mlp-svg { width: 100%; height: 280px; }
+    .mlp-neuron { fill: var(--surface); stroke: var(--navy); stroke-width: 1.4; }
+    .mlp-neuron.in { stroke: var(--orange); fill: var(--orange-soft); }
+    .mlp-neuron.out { stroke: var(--navy); fill: var(--navy); }
+    .mlp-edge { stroke: var(--navy); stroke-width: 0.5; opacity: 0.18; }
+    .mlp-label { font-family: var(--sans); font-size: 12px; fill: var(--text-2); font-weight: 500; }
+    .mlp-dim { font-family: var(--mono); font-size: 11px; fill: var(--text-3); }
+
+    .mlp-stats { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 22px; justify-content: center; }
+    .mlp-stat { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
+    .mlp-stat strong { color: var(--navy); font-size: 16px; font-family: var(--serif); font-weight: 600; margin-right: 6px; }
+
+    /* ---------- training recipe ---------- */
+    .recipe { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 820px) { .recipe { grid-template-columns: 1fr; } }
+    .recipe .item { padding: 22px; border-left: 3px solid var(--orange); background: var(--surface); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .recipe .item h4 { color: var(--navy); margin-bottom: 6px; }
+    .recipe .item .meta { font-family: var(--mono); font-size: 11px; color: var(--text-3); margin-top: 8px; letter-spacing: 0.04em; }
+    .recipe .item p { font-size: 15px; margin: 0; }
+
+    /* ---------- debounce state machine ---------- */
+    .fsm-card { padding: 32px 24px; }
+    .fsm-svg { width: 100%; height: 240px; }
+    .fsm-state rect { fill: var(--surface); stroke: var(--navy); stroke-width: 1.6; }
+    .fsm-state.active rect { fill: var(--orange-soft); stroke: var(--orange); }
+    .fsm-state text { font-family: var(--sans); font-size: 13px; font-weight: 600; fill: var(--text); text-anchor: middle; }
+    .fsm-arc { fill: none; stroke: var(--text-3); stroke-width: 1.3; }
+    .fsm-arc.commit { stroke: var(--orange); stroke-width: 1.6; }
+    .fsm-label { font-family: var(--mono); font-size: 10px; fill: var(--text-2); }
+    .fsm-caption { margin-top: 14px; font-size: 14px; color: var(--text-2); }
+
+    /* ---------- vocab grid ---------- */
+    .vocab { display: grid; grid-template-columns: repeat(13, 1fr); gap: 8px; }
+    @media (max-width: 820px) { .vocab { grid-template-columns: repeat(7, 1fr); } }
+    @media (max-width: 480px) { .vocab { grid-template-columns: repeat(5, 1fr); } }
+    .vocab .cell {
+      aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-family: var(--serif); font-weight: 600; font-size: 22px;
+      color: var(--navy); transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .vocab .cell:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: var(--orange); }
+    .vocab .cell.skip { color: var(--text-3); background: transparent; border-style: dashed; font-style: italic; }
+    .vocab .cell.ctrl { color: var(--orange); background: var(--orange-soft); border-color: var(--orange); font-size: 12px; font-family: var(--mono); font-weight: 500; letter-spacing: 0.08em; }
+    .vocab-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 20px; font-size: 13px; color: var(--text-2); }
+    .vocab-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 6px; }
+
+    /* ---------- tech stack ---------- */
+    .stack-block + .stack-block { margin-top: 28px; }
+    .stack-block h3 { margin-bottom: 14px; }
+    .pieces { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    @media (max-width: 820px) { .pieces { grid-template-columns: repeat(2, 1fr); } }
+    .piece {
+      padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .piece:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+    .piece .kind { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; color: var(--text-3); text-transform: uppercase; }
+    .piece .name { font-family: var(--serif); font-weight: 600; font-size: 17px; color: var(--text); margin-top: 4px; }
+    .piece .why { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+
+    /* ---------- roadmap ---------- */
+    .phases { display: grid; gap: 10px; }
+    .phase {
+      display: grid; grid-template-columns: 60px 1fr auto; gap: 18px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 18px 22px; transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .phase:hover { border-color: var(--navy); box-shadow: var(--shadow-2); }
+    .phase .num { font-family: var(--serif); font-size: 28px; font-weight: 600; color: var(--text-3); }
+    .phase .body h4 { margin-bottom: 2px; }
+    .phase .body p { margin: 0; font-size: 14px; }
+    .phase .status {
+      font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 5px 10px; border-radius: 999px; font-weight: 500;
+    }
+    .phase.done    .status { background: #DCEEDE; color: var(--green); }
+    .phase.now     .status { background: var(--orange-soft); color: #9a4818; }
+    .phase.next    .status { background: var(--surface-2); color: var(--text-2); }
+    .phase.done .num { color: var(--green); }
+    .phase.now  .num { color: var(--orange); }
+    @media (max-width: 560px) {
+      .phase { grid-template-columns: 40px 1fr; }
+      .phase .status { grid-column: 2; justify-self: start; margin-top: 4px; }
+    }
+
+    /* ---------- specs ---------- */
+    .specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    @media (max-width: 820px) { .specs { grid-template-columns: repeat(2, 1fr); } }
+    .spec {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px;
+      text-align: center;
+    }
+    .spec .num {
+      font-family: var(--serif); font-weight: 600; font-size: 44px; letter-spacing: -0.02em; color: var(--navy);
+      line-height: 1;
+    }
+    .spec .unit { font-family: var(--mono); font-size: 13px; color: var(--text-3); margin-top: 4px; }
+    .spec .label { font-size: 13px; color: var(--text-2); margin-top: 10px; }
+
+    /* ---------- footer ---------- */
+    footer { padding: 56px 0 80px; border-top: 1px solid var(--border); }
+    footer .container { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 18px; font-size: 14px; color: var(--text-3); }
+    footer a { color: var(--text-2); border: 0; font-weight: 500; }
+    footer a:hover { color: var(--orange); }
+
+    /* ---------- scroll reveal ---------- */
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s ease, transform 0.7s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .flow-dot { animation: none; opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="#top">ASL<span class="dot">.</span>live</a>
+    <div class="navlinks">
+      <a href="#overview">Overview</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#ai">Recognition AI</a>
+      <a href="#vocab">Vocabulary</a>
+      <a href="#stack">Stack</a>
+      <a href="#roadmap">Roadmap</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="container reveal">
+    <div class="eyebrow">Offline &middot; Raspberry Pi 5 &middot; v1</div>
+    <h1>ASL<span class="accent">&middot;</span>live</h1>
+    <p class="sub">An offline sign-to-speech device for a mute user.</p>
+    <p class="meta">A mute user fingerspells ASL letters into a USB camera. The Pi recognizes them, builds a word, translates it into the user&rsquo;s chosen language (IT&nbsp;&middot;&nbsp;ES&nbsp;&middot;&nbsp;FR&nbsp;&middot;&nbsp;EN&nbsp;&middot;&nbsp;DE), and speaks it through a USB speaker. No phone. No cloud. No internet.</p>
+    <div class="badges">
+      <span class="badge"><span class="swatch"></span> Python 3.11+</span>
+      <span class="badge"><span class="swatch" style="background:#0097A7"></span> MediaPipe</span>
+      <span class="badge"><span class="swatch" style="background:#EE4C2C"></span> PyTorch &rarr; ONNX</span>
+      <span class="badge"><span class="swatch" style="background:#7d4cdb"></span> Argos Translate</span>
+      <span class="badge"><span class="swatch" style="background:#2F7A4F"></span> Piper TTS</span>
+      <span class="badge"><span class="swatch" style="background:#C7372F"></span> Raspberry Pi 5</span>
+    </div>
+  </div>
+</header>
+
+<section id="overview">
+  <div class="container reveal">
+    <div class="eyebrow">What it does</div>
+    <h2>Fingerspell a word. Hear it in your language.</h2>
+    <p class="lede">A single Python application runs three workers in parallel on the Pi: a recognizer that turns camera frames into letters, a translator that converts each finished word from English to the target language, and a speaker that synthesizes audio. Two buttons and a 16&times;2 LCD give the user full control without a phone or screen.</p>
+    <div class="grid grid-3" style="margin-top: 36px;">
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom: 8px;">See</div>
+        <h4>USB webcam &rarr; 21 hand keypoints</h4>
+        <p style="font-size:15px;">MediaPipe Hands extracts 21 (x, y, z) keypoints per frame at ~30 fps on the Pi 5.</p>
+      </div>
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom: 8px;">Think</div>
+        <h4>Tiny MLP &rarr; one of 26 classes</h4>
+        <p style="font-size:15px;">A 4-layer MLP classifies the 63-dim landmark vector into 24 letters + SPACE + DELETE.</p>
+      </div>
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom: 8px;">Speak</div>
+        <h4>Argos translate &rarr; Piper TTS</h4>
+        <p style="font-size:15px;">Each finished word is translated and spoken in the chosen language &mdash; entirely on-device.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pipeline">
+  <div class="container reveal">
+    <div class="eyebrow">Section 02</div>
+    <h2>The pipeline, end to end.</h2>
+    <p class="lede">Three processes connected by bounded queues so recognition stays at full frame rate while translation and speech happen in parallel.</p>
+
+    <div class="card pipeline-card" style="margin-top: 36px;">
+      <svg class="pipeline-svg" viewBox="0 0 1040 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="End-to-end pipeline diagram">
+        <!-- definitions -->
+        <defs>
+          <marker id="arrowhead" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L8,4.5 L0,9 z" fill="#8A8A8A" />
+          </marker>
+        </defs>
+
+        <!-- recognition row -->
+        <g class="pipe-node">
+          <rect x="20"  y="140" width="130" height="64" rx="10" />
+          <text class="t1" x="85"  y="170" text-anchor="middle">Camera</text>
+          <text class="t2" x="85"  y="188" text-anchor="middle">720p &middot; 30 fps</text>
+        </g>
+        <g class="pipe-node recog">
+          <rect x="180" y="140" width="130" height="64" rx="10" />
+          <text class="t1" x="245" y="170" text-anchor="middle">MediaPipe</text>
+          <text class="t2" x="245" y="188" text-anchor="middle">21 keypoints</text>
+        </g>
+        <g class="pipe-node recog">
+          <rect x="340" y="140" width="130" height="64" rx="10" />
+          <text class="t1" x="405" y="170" text-anchor="middle">MLP</text>
+          <text class="t2" x="405" y="188" text-anchor="middle">63 &rarr; 26 &middot; ONNX</text>
+        </g>
+        <g class="pipe-node recog">
+          <rect x="500" y="140" width="130" height="64" rx="10" />
+          <text class="t1" x="565" y="170" text-anchor="middle">Debounce</text>
+          <text class="t2" x="565" y="188" text-anchor="middle">5-frame stable</text>
+        </g>
+        <g class="pipe-node">
+          <rect x="660" y="140" width="130" height="64" rx="10" />
+          <text class="t1" x="725" y="170" text-anchor="middle">Word buffer</text>
+          <text class="t2" x="725" y="188" text-anchor="middle">HELLO_</text>
+        </g>
+
+        <!-- arrows between recognition nodes -->
+        <path class="pipe-arrow" d="M150 172 L180 172"  marker-end="url(#arrowhead)" />
+        <path class="pipe-arrow" d="M310 172 L340 172"  marker-end="url(#arrowhead)" />
+        <path class="pipe-arrow" d="M470 172 L500 172"  marker-end="url(#arrowhead)" />
+        <path class="pipe-arrow" d="M630 172 L660 172"  marker-end="url(#arrowhead)" />
+
+        <!-- flow dots on the recognition row -->
+        <circle class="flow-dot" r="4" style="offset-path: path('M85 172 L790 172'); animation-duration: 5s;" />
+        <circle class="flow-dot" r="4" style="offset-path: path('M85 172 L790 172'); animation-duration: 5s; animation-delay: 1.6s;" />
+        <circle class="flow-dot" r="4" style="offset-path: path('M85 172 L790 172'); animation-duration: 5s; animation-delay: 3.2s;" />
+
+        <!-- LCD branch (up) -->
+        <path class="pipe-arrow" d="M725 140 C 725 90, 880 90, 880 64" marker-end="url(#arrowhead)" />
+        <g class="pipe-node">
+          <rect x="810" y="14" width="140" height="50" rx="8" />
+          <text class="t1" x="880" y="36" text-anchor="middle">LCD 16&times;2</text>
+          <text class="t2" x="880" y="52" text-anchor="middle">HELLO_  &middot;  IT|REC</text>
+        </g>
+
+        <!-- SPACE branch (down) -->
+        <text class="t2" x="800" y="225" fill="#E87722" font-weight="600">on SPACE</text>
+        <path class="pipe-arrow" d="M790 195 C 830 240, 870 240, 880 256" marker-end="url(#arrowhead)" style="stroke:#E87722" />
+
+        <!-- translator + speaker -->
+        <g class="pipe-node">
+          <rect x="810" y="256" width="100" height="50" rx="8" />
+          <text class="t1" x="860" y="278" text-anchor="middle">Argos</text>
+          <text class="t2" x="860" y="294" text-anchor="middle">en &rarr; it</text>
+        </g>
+        <path class="pipe-arrow" d="M910 281 L940 281" marker-end="url(#arrowhead)" />
+        <g class="pipe-node">
+          <rect x="940" y="256" width="80" height="50" rx="8" />
+          <text class="t1" x="980" y="278" text-anchor="middle">Piper</text>
+          <text class="t2" x="980" y="294" text-anchor="middle">&#x1F50A; speaker</text>
+        </g>
+
+        <!-- legend -->
+        <g>
+          <rect x="20" y="20" width="14" height="14" rx="3" fill="#FFFFFF" stroke="#1A3A5C" stroke-width="1.4" />
+          <text class="t2" x="40" y="32" fill="#5A5A5A">I/O &amp; buffers</text>
+          <rect x="160" y="20" width="14" height="14" rx="3" fill="#FFFFFF" stroke="#E87722" stroke-width="1.4" />
+          <text class="t2" x="180" y="32" fill="#5A5A5A">Recognition worker (per-frame)</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section id="ai">
+  <div class="container reveal">
+    <div class="eyebrow">Section 03 &middot; The centerpiece</div>
+    <h2>Recognition AI &mdash; six decisions that define the model.</h2>
+    <p class="lede">Most of the engineering thought in ASL-live lives here: the choice of input representation, the model size, how training is shaped to avoid failure modes, and how raw per-frame predictions become committed letters.</p>
+
+    <!-- 3.1 landmarks vs pixels -->
+    <div class="ai-sub reveal">
+      <h3><span class="num">3.1</span> Landmarks, not raw pixels.</h3>
+      <p>The single most important architectural call. Instead of training a CNN on camera images, we let MediaPipe extract 21 hand keypoints first and classify those.</p>
+
+      <div class="compare" style="margin-top: 20px;">
+        <div class="col bad">
+          <span class="tag bad">Rejected</span>
+          <h4 style="margin: 12px 0 4px;">CNN on raw 224&times;224 images</h4>
+          <ul>
+            <li>Tens of thousands of labeled image samples per class</li>
+            <li>Tens of MB model, slow to train and ship</li>
+            <li>Fragile to lighting, skin tone, background, framing</li>
+            <li>GPU strongly preferred for training</li>
+          </ul>
+        </div>
+        <div class="vs">vs</div>
+        <div class="col good">
+          <span class="tag good">Chosen</span>
+          <h4 style="margin: 12px 0 4px;">MLP on 63 normalized landmark floats</h4>
+          <ul>
+            <li>~3 k samples per class enough; trains in minutes on CPU</li>
+            <li>~120 KB model; deployable as a single ONNX file</li>
+            <li>MediaPipe handles invariance to lighting and background</li>
+            <li>Inference under 5 &micro;s per frame on the Pi</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3.2 21 keypoints -->
+    <div class="ai-sub reveal">
+      <h3><span class="num">3.2</span> The 63-dim feature vector.</h3>
+      <p>Each frame becomes 21 keypoints &times; 3 coords = 63 floats. Two normalization steps make the model translation- and scale-invariant.</p>
+
+      <div class="card hand-card" style="margin-top: 20px;">
+        <svg class="hand-svg" viewBox="0 0 320 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="21 MediaPipe hand keypoints">
+          <!-- bones (palm + 5 fingers) -->
+          <path class="bone" d="M160 320 L120 230 L110 170 L100 130 L90 95" />
+          <path class="bone" d="M160 320 L150 220 L150 160 L150 110 L150 70" />
+          <path class="bone" d="M160 320 L180 220 L185 160 L188 110 L190 70" />
+          <path class="bone" d="M160 320 L210 230 L220 170 L228 130 L235 100" />
+          <path class="bone" d="M160 320 L230 280 L255 240 L275 210 L290 190" />
+          <path class="bone" d="M120 230 L150 220 L180 220 L210 230 L230 280" />
+
+          <!-- 21 keypoints (wrist = 0) -->
+          <circle class="kp wrist" cx="160" cy="320" r="7" />
+          <text class="kp-label" x="170" y="324">0 wrist</text>
+
+          <!-- thumb 1..4 -->
+          <circle class="kp" cx="120" cy="230" r="4.5" />
+          <circle class="kp" cx="110" cy="170" r="4.5" />
+          <circle class="kp" cx="100" cy="130" r="4.5" />
+          <circle class="kp" cx="90"  cy="95"  r="4.5" />
+
+          <!-- index 5..8 -->
+          <circle class="kp" cx="150" cy="220" r="4.5" />
+          <circle class="kp" cx="150" cy="160" r="4.5" />
+          <circle class="kp" cx="150" cy="110" r="4.5" />
+          <circle class="kp" cx="150" cy="70"  r="4.5" />
+
+          <!-- middle 9..12 -->
+          <circle class="kp" cx="180" cy="220" r="4.5" />
+          <circle class="kp" cx="185" cy="160" r="4.5" />
+          <circle class="kp" cx="188" cy="110" r="4.5" />
+          <circle class="kp" cx="190" cy="70"  r="4.5" />
+
+          <!-- ring 13..16 -->
+          <circle class="kp" cx="210" cy="230" r="4.5" />
+          <circle class="kp" cx="220" cy="170" r="4.5" />
+          <circle class="kp" cx="228" cy="130" r="4.5" />
+          <circle class="kp" cx="235" cy="100" r="4.5" />
+
+          <!-- pinky 17..20 -->
+          <circle class="kp" cx="230" cy="280" r="4.5" />
+          <circle class="kp" cx="255" cy="240" r="4.5" />
+          <circle class="kp" cx="275" cy="210" r="4.5" />
+          <circle class="kp" cx="290" cy="190" r="4.5" />
+        </svg>
+
+        <div class="norm-steps">
+          <div class="norm-step">
+            <div class="n">1</div>
+            <div>
+              <h4>Translate to wrist origin</h4>
+              <p>Subtract landmark 0 from all 21 points. The hand&rsquo;s absolute position in the frame stops mattering.</p>
+            </div>
+          </div>
+          <div class="norm-step">
+            <div class="n">2</div>
+            <div>
+              <h4>Scale to unit max-distance</h4>
+              <p>Divide by the largest distance from the wrist. A close-up hand and a far hand now produce the same vector.</p>
+            </div>
+          </div>
+          <div class="norm-step">
+            <div class="n">3</div>
+            <div>
+              <h4>Flatten to 63 floats</h4>
+              <p><code>(21, 3) &rarr; (63,)</code>. This is the exact input the MLP sees &mdash; no images, no convolutions, just numbers.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3.3 MLP architecture -->
+    <div class="ai-sub reveal">
+      <h3><span class="num">3.3</span> A four-layer MLP. Nothing fancier.</h3>
+      <p>Right tool for low-dimensional tabular classification. CNNs need spatial input; RNNs / Transformers need sequences. We have neither &mdash; just 63 abstract numbers per frame.</p>
+
+      <div class="card mlp-card" style="margin-top: 20px;">
+        <svg class="mlp-svg" viewBox="0 0 760 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MLP layer diagram">
+          <!-- edges (representative, not exhaustive) -->
+          <g id="mlp-edges"></g>
+          <!-- neurons drawn by script below for compactness -->
+          <g id="mlp-neurons"></g>
+
+          <!-- layer labels -->
+          <text class="mlp-label" x="80"  y="222" text-anchor="middle">Input</text>
+          <text class="mlp-dim"   x="80"  y="238" text-anchor="middle">63</text>
+          <text class="mlp-label" x="280" y="222" text-anchor="middle">Hidden 1</text>
+          <text class="mlp-dim"   x="280" y="238" text-anchor="middle">128 &middot; ReLU &middot; Dropout 0.2</text>
+          <text class="mlp-label" x="480" y="222" text-anchor="middle">Hidden 2</text>
+          <text class="mlp-dim"   x="480" y="238" text-anchor="middle">64 &middot; ReLU</text>
+          <text class="mlp-label" x="680" y="222" text-anchor="middle">Output</text>
+          <text class="mlp-dim"   x="680" y="238" text-anchor="middle">26 &middot; Softmax</text>
+        </svg>
+
+        <div class="mlp-stats">
+          <div class="mlp-stat"><strong>~30 k</strong> parameters</div>
+          <div class="mlp-stat"><strong>~120 KB</strong> on disk (FP32)</div>
+          <div class="mlp-stat"><strong>&lt; 5 &micro;s</strong> per inference</div>
+          <div class="mlp-stat"><strong>26</strong> output classes</div>
+        </div>
+
+        <p style="margin-top: 22px; font-size: 14px; color: var(--text-3); text-align: center;">XGBoost is trained alongside as a baseline sanity check &mdash; if it beats the MLP by &gt;1% macro-F1, the MLP is misdesigned. It is <em>not</em> deployed.</p>
+      </div>
+    </div>
+
+    <!-- 3.4 training recipe -->
+    <div class="ai-sub reveal">
+      <h3><span class="num">3.4</span> Training recipe &mdash; balanced for the failure modes we expect.</h3>
+      <p>Imbalanced data and small custom classes (SPACE, DELETE) are the two big risks. The recipe is tuned to address both.</p>
+
+      <div class="recipe" style="margin-top: 20px;">
+        <div class="item">
+          <div class="meta">Dataset</div>
+          <h4>Public + custom mix</h4>
+          <p>~3 k samples per letter from a public Kaggle set; ~500 each for SPACE and DELETE from custom webcam capture. Mirror-flipped at ingest for free 2&times; data.</p>
+        </div>
+        <div class="item">
+          <div class="meta">Loss</div>
+          <h4>Class-weighted cross-entropy</h4>
+          <p>Weights inversely proportional to class frequency. A SPACE mistake costs the optimizer ~6&times; more than a letter mistake &mdash; otherwise SPACE accuracy gets sacrificed.</p>
+        </div>
+        <div class="item">
+          <div class="meta">Augmentation</div>
+          <h4>Noise &middot; scale &middot; translate</h4>
+          <p>Each sample gets independent 50% chance of Gaussian noise (&sigma;=0.01), uniform scale [0.95, 1.05], xy translation &plusmn;0.02. No rotation, no flip (flip already happened).</p>
+        </div>
+        <div class="item">
+          <div class="meta">Split</div>
+          <h4>80 / 10 / 10 stratified, seed 42</h4>
+          <p>Stratified preserves class proportions. Val drives early stopping and LR schedule; test is touched exactly once at the end.</p>
+        </div>
+        <div class="item">
+          <div class="meta">Optimizer</div>
+          <h4>Adam &middot; lr 1e-3 &middot; wd 1e-4</h4>
+          <p>Adam&rsquo;s per-weight adaptive learning rate plus momentum &mdash; works on the first try for ~95% of small projects.</p>
+        </div>
+        <div class="item">
+          <div class="meta">Stopping</div>
+          <h4>Early stop, patience 10</h4>
+          <p>Halt when val loss has not improved for 10 epochs; keep best checkpoint. ReduceLROnPlateau halves LR after 5 stagnant epochs.</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 20px; padding: 22px 26px;">
+        <div class="eyebrow" style="color: var(--navy);">Acceptance bar (both must hold)</div>
+        <p style="margin-top: 8px;">Macro-F1 &ge; <strong>0.95</strong> on test set &middot;&nbsp; no off-diagonal confusion-matrix cell exceeds <strong>2%</strong> of its row total. If either fails, do not advance &mdash; collect more data for the weak class, swap a confusing gesture, or adjust the model.</p>
+      </div>
+    </div>
+
+    <!-- 3.5 debounce FSM -->
+    <div class="ai-sub reveal">
+      <h3><span class="num">3.5</span> Per-frame predictions &rarr; committed letters.</h3>
+      <p>The MLP fires 30 times a second. Without debounce, holding one sign for a second would produce 30 of the same letter. A two-state machine with a stability counter and a cooldown gap turns the prediction stream into exactly one commit per intentional sign.</p>
+
+      <div class="card fsm-card" style="margin-top: 20px;">
+        <svg class="fsm-svg" viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Debounce state machine">
+          <defs>
+            <marker id="arr2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L8,4.5 L0,9 z" fill="#8A8A8A" />
+            </marker>
+            <marker id="arr-o" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L8,4.5 L0,9 z" fill="#E87722" />
+            </marker>
+          </defs>
+
+          <g class="fsm-state">
+            <rect x="40"  y="70" width="170" height="60" rx="10" />
+            <text x="125" y="105">WAITING</text>
+          </g>
+          <g class="fsm-state active">
+            <rect x="295" y="70" width="170" height="60" rx="10" />
+            <text x="380" y="105">STABLE  (n / 5)</text>
+          </g>
+          <g class="fsm-state">
+            <rect x="550" y="70" width="170" height="60" rx="10" />
+            <text x="635" y="105">COOLDOWN  (3f)</text>
+          </g>
+
+          <!-- forward arrows -->
+          <path class="fsm-arc" d="M210 100 L295 100" marker-end="url(#arr2)" />
+          <path class="fsm-arc commit" d="M465 100 L550 100" marker-end="url(#arr-o)" />
+          <path class="fsm-arc" d="M635 130 C 635 175, 125 175, 125 132" marker-end="url(#arr2)" />
+
+          <!-- transition labels -->
+          <text class="fsm-label" x="252" y="92"  text-anchor="middle">same class &amp;&nbsp;conf &ge; 0.85</text>
+          <text class="fsm-label" x="507" y="92"  text-anchor="middle" fill="#E87722">n=5 &rarr; commit letter</text>
+          <text class="fsm-label" x="380" y="172" text-anchor="middle">no-hand or class change for 3 frames</text>
+
+          <!-- self loops -->
+          <path class="fsm-arc" d="M125 70 C 100 30, 60 50, 60 80" marker-end="url(#arr2)" />
+          <text class="fsm-label" x="40" y="30">conf &lt; 0.85</text>
+          <path class="fsm-arc" d="M380 70 C 360 30, 400 30, 380 70" />
+          <text class="fsm-label" x="345" y="30">+1 frame</text>
+        </svg>
+
+        <p class="fsm-caption">Knobs: <code>STABLE_FRAMES = 5</code>, <code>MIN_CONF = 0.85</code>, <code>GAP_FRAMES = 3</code>. Re-tuned in phase 7 from real-use logs.</p>
+      </div>
+    </div>
+
+    <!-- 3.6 ONNX -->
+    <div class="ai-sub reveal">
+      <h3><span class="num">3.6</span> Trained in PyTorch, deployed as ONNX.</h3>
+      <p>ONNX is a <em>file format</em>, not a model &mdash; like JPEG for images. The trained MLP could equally be saved as <code>.pt</code> or <code>.tflite</code>; we pick <code>.onnx</code> because the runtime is a single ~50 MB Python package with no other dependencies. PyTorch never gets installed on the Pi.</p>
+      <div class="grid grid-2" style="margin-top: 20px;">
+        <div class="card">
+          <h4 style="color: var(--navy);">Why ONNX, not TFLite</h4>
+          <p style="font-size: 15px;">TFLite is tuned for mobile and accelerator hardware (Coral, NPUs) &mdash; irrelevant on a plain Pi 5 CPU. ONNX has the better Python ecosystem, numpy interop, and debug tooling.</p>
+        </div>
+        <div class="card">
+          <h4 style="color: var(--navy);">Quantization &mdash; skipped for v1</h4>
+          <p style="font-size: 15px;">FP32 &rarr; INT8 would save 90&nbsp;KB and a few microseconds. The Pi 5 has 8&nbsp;GB of RAM. Revisit only if profiling demands it (it won&rsquo;t &mdash; MediaPipe dominates the frame budget).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="vocab">
+  <div class="container reveal">
+    <div class="eyebrow">Section 04</div>
+    <h2>26 classes &mdash; 24 letters + 2 control gestures.</h2>
+    <p class="lede">J and Z are skipped because they require motion; the alphabet-fingerspelling alphabet uses only static handshapes. Two control gestures replace the keyboard buttons a phone keyboard would have: an open palm commits the word, a thumb-side fist deletes the last letter.</p>
+
+    <div class="vocab" id="vocab-grid" style="margin-top: 28px;"></div>
+
+    <div class="vocab-legend">
+      <span><span class="dot" style="background: var(--surface); border: 1px solid var(--border);"></span>letter</span>
+      <span><span class="dot" style="background: transparent; border: 1px dashed var(--text-3);"></span>skipped (motion)</span>
+      <span><span class="dot" style="background: var(--orange);"></span>control gesture</span>
+    </div>
+
+    <div class="grid grid-2" style="margin-top: 28px;">
+      <div class="card">
+        <div class="eyebrow" style="color: var(--orange);">SPACE</div>
+        <h4>Open palm, five fingers spread</h4>
+        <p style="font-size: 15px;">Commit the current word: send it to the translator, speak it, and clear the buffer. Visually distinct from every letter shape.</p>
+      </div>
+      <div class="card">
+        <div class="eyebrow" style="color: var(--orange);">DELETE</div>
+        <h4>Closed fist, thumb extended sideways</h4>
+        <p style="font-size: 15px;">Remove the last letter from the buffer. Reads as a backspace arrow (&larr;); thumb-side over thumb-down because the wrist rotation is easier when holding the device in the off hand.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="stack">
+  <div class="container reveal">
+    <div class="eyebrow">Section 05</div>
+    <h2>Tech stack &mdash; every part chosen for offline-on-a-Pi.</h2>
+
+    <div class="stack-block">
+      <h3>Hardware</h3>
+      <div class="pieces">
+        <div class="piece">
+          <div class="kind">Compute</div>
+          <div class="name">Raspberry Pi 5 &middot; 8 GB</div>
+          <div class="why">Runs MediaPipe + MLP + Argos + Piper concurrently with headroom.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Camera</div>
+          <div class="name">USB UVC webcam, 720p</div>
+          <div class="why">Landmarks do not need high resolution; MediaPipe resizes internally.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Display</div>
+          <div class="name">DFR0063 16&times;2 LCD</div>
+          <div class="why">HD44780 with PCF8574 I&sup2;C backpack &mdash; wires directly to GPIO 2/3.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Input</div>
+          <div class="name">2 tactile pushbuttons</div>
+          <div class="why">Start/stop and language menu. Internal pull-ups, 30 ms debounce.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Audio</div>
+          <div class="name">USB speaker</div>
+          <div class="why">Default ALSA output. Piper writes 16-bit PCM through sounddevice.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Power</div>
+          <div class="name">USB-C power bank, 5V/3A</div>
+          <div class="why">~5 W average load; a 10 Ah pack lasts 3&ndash;4 hours.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Storage</div>
+          <div class="name">microSD &ge; 32 GB</div>
+          <div class="why">Holds OS, Argos packs (~100 MB each), Piper voices (~80 MB each).</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Misc</div>
+          <div class="name">Breadboard + jumpers</div>
+          <div class="why">Prototype wiring. Final BOM and Fritzing diagram in phase 7.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack-block">
+      <h3>Software</h3>
+      <div class="pieces">
+        <div class="piece">
+          <div class="kind">Recognition</div>
+          <div class="name">MediaPipe Hands</div>
+          <div class="why">21 keypoints per frame at ~30 fps on Pi 5 with model_complexity=1.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Training</div>
+          <div class="name">PyTorch (PC only)</div>
+          <div class="why">Trains the MLP; never installed on the Pi.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Runtime</div>
+          <div class="name">onnxruntime</div>
+          <div class="why">Loads <code>mlp.onnx</code>; ~50 MB package, no external deps.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Baseline</div>
+          <div class="name">XGBoost</div>
+          <div class="why">Sanity-check baseline at training time only. Not deployed.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Translation</div>
+          <div class="name">Argos Translate</div>
+          <div class="why">Offline OpenNMT. ~100 MB per language pair, 100&ndash;500 ms per word.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">TTS</div>
+          <div class="name">Piper</div>
+          <div class="why">Neural, real-time on Pi 5 CPU. All 5 voices preloaded for instant switch.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Peripherals</div>
+          <div class="name">RPLCD &middot; gpiozero &middot; smbus2</div>
+          <div class="why">LCD over I&sup2;C, button edge detection, raw I&sup2;C bus.</div>
+        </div>
+        <div class="piece">
+          <div class="kind">Audio out</div>
+          <div class="name">sounddevice &rarr; ALSA</div>
+          <div class="why">Piper PCM into the USB speaker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="container reveal">
+    <div class="eyebrow">Section 06</div>
+    <h2>7 phases. Each one ends with a demoable artifact.</h2>
+    <p class="lede">No big-bang integration. Every phase has a goal, deliverables, and an acceptance bar that has to pass before the next one starts.</p>
+
+    <div class="phases" style="margin-top: 32px;">
+      <div class="phase done">
+        <div class="num">01</div>
+        <div class="body">
+          <h4>Data collection (PC)</h4>
+          <p>Landmark extractor, Kaggle ingest, custom SPACE/DELETE collector. Per-class <code>.npy</code> dataset.</p>
+        </div>
+        <div class="status">Shipped</div>
+      </div>
+      <div class="phase done">
+        <div class="num">02</div>
+        <div class="body">
+          <h4>Train MLP classifier (PC)</h4>
+          <p>Dataset loader, augmentation, model, metrics, ONNX export, runtime classifier wrapper. Macro-F1 acceptance bar.</p>
+        </div>
+        <div class="status">Shipped</div>
+      </div>
+      <div class="phase now">
+        <div class="num">03</div>
+        <div class="body">
+          <h4>Live recognition demo (PC &rarr; Pi)</h4>
+          <p>Debounce state machine, terminal demo, then port to Pi to confirm &ge;15 fps. Tested on real-life signing &mdash; "HELLO" reads as <code>HELLO</code>.</p>
+        </div>
+        <div class="status">In progress</div>
+      </div>
+      <div class="phase next">
+        <div class="num">04</div>
+        <div class="body">
+          <h4>Pi peripherals: LCD on I&sup2;C</h4>
+          <p>DFR0063 driver, cell-diff renderer, live word display on line 1, status code on line 2.</p>
+        </div>
+        <div class="status">Queued</div>
+      </div>
+      <div class="phase next">
+        <div class="num">05</div>
+        <div class="body">
+          <h4>Translation + TTS workers</h4>
+          <p>Argos wrapper with LRU cache, Piper wrapper with bounded drop-oldest queue, full pipeline orchestrator with three processes and two queues.</p>
+        </div>
+        <div class="status">Queued</div>
+      </div>
+      <div class="phase next">
+        <div class="num">06</div>
+        <div class="body">
+          <h4>Buttons + audio language menu</h4>
+          <p>Two GPIO buttons, audio-only language menu with state machine, persisted to <code>~/.aslive/config.json</code>. Cold boot to spoken word with no PC.</p>
+        </div>
+        <div class="status">Queued</div>
+      </div>
+      <div class="phase next">
+        <div class="num">07</div>
+        <div class="body">
+          <h4>Polish</h4>
+          <p>Tune debounce thresholds from real-use logs, final BOM, wiring diagram, systemd auto-start. Plug in &rarr; ready to capture.</p>
+        </div>
+        <div class="status">Queued</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="specs">
+  <div class="container reveal">
+    <div class="eyebrow">Section 07</div>
+    <h2>Key numbers.</h2>
+
+    <div class="specs" style="margin-top: 32px;">
+      <div class="spec">
+        <div class="num" data-target="30" data-suffix="+">0</div>
+        <div class="unit">fps</div>
+        <div class="label">Landmark + classify on Pi 5</div>
+      </div>
+      <div class="spec">
+        <div class="num" data-target="26">0</div>
+        <div class="unit">classes</div>
+        <div class="label">24 letters + SPACE + DELETE</div>
+      </div>
+      <div class="spec">
+        <div class="num" data-target="120">0</div>
+        <div class="unit">KB &middot; ONNX</div>
+        <div class="label">Whole deployable model</div>
+      </div>
+      <div class="spec">
+        <div class="num" data-target="5" data-prefix="&lt;">0</div>
+        <div class="unit">&micro;s / inference</div>
+        <div class="label">MLP forward pass</div>
+      </div>
+      <div class="spec">
+        <div class="num" data-target="95" data-suffix="%">0</div>
+        <div class="unit">macro-F1 floor</div>
+        <div class="label">Acceptance bar to ship</div>
+      </div>
+      <div class="spec">
+        <div class="num" data-target="1.5" data-prefix="&lt;" data-decimals="1">0</div>
+        <div class="unit">seconds</div>
+        <div class="label">SPACE &rarr; first audio</div>
+      </div>
+      <div class="spec">
+        <div class="num" data-target="5">0</div>
+        <div class="unit">languages</div>
+        <div class="label">IT &middot; ES &middot; FR &middot; EN &middot; DE</div>
+      </div>
+      <div class="spec">
+        <div class="num" data-target="0" data-suffix="">0</div>
+        <div class="unit">network calls</div>
+        <div class="label">Fully offline by design</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <span>ASL&middot;live &mdash; built on a Pi 5, runs without a network.</span>
+    <span><a href="README.md">README</a> &middot; <a href="#top">Back to top</a></span>
+  </div>
+</footer>
+
+<script>
+  // ----- vocab grid -----
+  (function buildVocab() {
+    const grid = document.getElementById("vocab-grid");
+    if (!grid) return;
+    const cells = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map(ch =>
+      (ch === "J" || ch === "Z") ? { kind: "skip", label: ch } : { kind: "letter", label: ch }
+    );
+    cells.push({ kind: "ctrl", label: "SPACE" });
+    cells.push({ kind: "ctrl", label: "DEL" });
+    grid.innerHTML = cells.map(c => {
+      const cls = c.kind === "skip" ? "skip" : c.kind === "ctrl" ? "ctrl" : "";
+      return `<div class="cell ${cls}">${c.label}</div>`;
+    }).join("");
+  })();
+
+  // ----- MLP layer diagram (compact, schematic) -----
+  (function drawMLP() {
+    const neuronGroup = document.getElementById("mlp-neurons");
+    const edgeGroup = document.getElementById("mlp-edges");
+    if (!neuronGroup || !edgeGroup) return;
+    // Schematic counts (visible neurons drawn, not the real 63/128/64/26)
+    const layers = [
+      { x: 80,  count: 12, cls: "in",  realDim: 63 },
+      { x: 280, count: 14, cls: "",    realDim: 128 },
+      { x: 480, count: 10, cls: "",    realDim: 64 },
+      { x: 680, count: 8,  cls: "out", realDim: 26 },
+    ];
+    const top = 16, bottom = 200;
+    const positions = layers.map(L => {
+      const span = bottom - top;
+      const step = span / (L.count - 1);
+      return Array.from({ length: L.count }, (_, i) => ({ x: L.x, y: top + i * step }));
+    });
+
+    // edges: sample 3 outgoing from each neuron to next layer (keep it light)
+    let edgeMarkup = "";
+    for (let i = 0; i < positions.length - 1; i++) {
+      const A = positions[i], B = positions[i + 1];
+      for (const a of A) {
+        for (let k = 0; k < 3; k++) {
+          const b = B[Math.floor(Math.random() * B.length)];
+          edgeMarkup += `<line class="mlp-edge" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" />`;
+        }
+      }
+    }
+    edgeGroup.innerHTML = edgeMarkup;
+
+    let neuronMarkup = "";
+    for (let i = 0; i < layers.length; i++) {
+      for (const p of positions[i]) {
+        neuronMarkup += `<circle class="mlp-neuron ${layers[i].cls}" cx="${p.x}" cy="${p.y}" r="5.5" />`;
+      }
+    }
+    neuronGroup.innerHTML = neuronMarkup;
+  })();
+
+  // ----- scroll reveal -----
+  (function reveal() {
+    const items = document.querySelectorAll(".reveal");
+    if (!("IntersectionObserver" in window)) {
+      items.forEach(el => el.classList.add("in"));
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add("in");
+          io.unobserve(e.target);
+        }
+      }
+    }, { threshold: 0.14, rootMargin: "0px 0px -10% 0px" });
+    items.forEach(el => io.observe(el));
+  })();
+
+  // ----- counter-up on specs -----
+  (function counters() {
+    const nums = document.querySelectorAll(".spec .num[data-target]");
+    if (!nums.length) return;
+
+    function animate(el) {
+      const target = parseFloat(el.dataset.target);
+      const decimals = parseInt(el.dataset.decimals || "0", 10);
+      const prefix = el.dataset.prefix || "";
+      const suffix = el.dataset.suffix || "";
+      const duration = 1200;
+      const start = performance.now();
+
+      function tick(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const v = (target * eased).toFixed(decimals);
+        el.textContent = prefix + v + suffix;
+        if (t < 1) requestAnimationFrame(tick);
+        else el.textContent = prefix + target.toFixed(decimals) + suffix;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    if (!("IntersectionObserver" in window)) {
+      nums.forEach(animate);
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          animate(e.target);
+          io.unobserve(e.target);
+        }
+      }
+    }, { threshold: 0.4 });
+    nums.forEach(el => io.observe(el));
+  })();
+</script>
+
+</body>
+</html>
