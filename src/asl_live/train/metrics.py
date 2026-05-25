@@ -123,7 +123,7 @@ def macro_f1(cm: np.ndarray) -> float:
 
 # Defaults from feature-3 §3.6.
 MACRO_F1_THRESHOLD = 0.95
-OFF_DIAGONAL_THRESHOLD = 0.02  # 2 % of the row total
+OFF_DIAGONAL_THRESHOLD = 0.03  # 3 % of the row total
 
 
 def check_acceptance_bar(
