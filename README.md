@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="assets/logo.png" alt="ASL-live logo" width="180" />
+</p>
+
+<p align="center">
   <h1 align="center">ASL-live</h1>
   <p align="center"><b>Offline ASL → Speech on Raspberry Pi</b></p>
   <p align="center">Sign ASL letters into a USB camera, hear the translated word spoken back in your chosen language — fully phone-free and internet-free.</p>

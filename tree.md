@@ -1,4 +1,6 @@
 ﻿.
+├── assets/
+│   └── logo.png
 ├── issue/
 │   ├── 001-windows-defender-throttles-bulk-npy-load.md
 │   └── README.md
