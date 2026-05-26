@@ -11,9 +11,22 @@ plans live under [`.claude/plans/`](.claude/plans/).
 
 ## Status
 
-Phase 1 — data collection pipeline. See
-[`.claude/plans/PLAN.md`](.claude/plans/PLAN.md) for the full 7-phase
-roadmap.
+Phases 1–5 complete on the dev PC. The full pipeline runs end-to-end
+on a webcam: sign letters → see them debounced into words → hear the
+translated word spoken through the PC speakers.
+
+| Phase | Scope | Status |
+|---|---|---|
+| 1 | Data collection | ✅ done |
+| 2 | Train MLP classifier | ✅ done (macro-F1 0.9884) |
+| 3 | Live recognition + debounce | ✅ done |
+| 5 | Translation (Argos) + TTS (Piper) | ✅ done (PC) |
+| 4 | LCD over I2C | ⏳ blocked on Pi hardware |
+| 6 | Buttons + audio language menu | ⏳ blocked on Pi hardware |
+| 7 | Polish, tuning, systemd autostart | ⏳ pending |
+
+See [`.claude/plans/PLAN.md`](.claude/plans/PLAN.md) for the full
+7-phase roadmap.
 
 ## Quick install
 
@@ -126,15 +139,76 @@ You do not have to be perfect — the training pipeline applies
 Gaussian-noise, scale, and translation augmentation to compensate for
 natural variation.
 
+## Translation + speech (phase 5)
+
+The full pipeline ships English-letter recognition → word assembly →
+offline translation → offline speech, all wired through three OS
+processes connected by `multiprocessing.Queue`s. Engines:
+
+- **Translation:** [Argos Translate](https://github.com/argosopentech/argos-translate) —
+  offline neural MT, one `.argosmodel` pack per language pair.
+- **Speech:** [Piper](https://github.com/rhasspy/piper) — offline
+  neural TTS, one `.onnx` voice per language.
+
+### One-time setup
+
+After `pip install -e .[dev]`, run the two installers. Both are
+idempotent — safe to re-run after a dropped download:
+
+```bash
+python scripts/setup_argos.py       # ~800 MB total (4 packs)
+python scripts/setup_piper.py       # ~250–500 MB total (5 voices)
+```
+
+Packs install to argostranslate's platform home dir
+(`%LOCALAPPDATA%\argos-translate\` on Windows,
+`~/.local/share/argos-translate/` on Linux/Pi). Voices install to
+`models/piper/voices/` by default; override with
+`ASL_PIPER_VOICES_DIR` (the Pi systemd unit will set this to
+`/opt/piper/voices/`).
+
+### Running the pipeline
+
+```bash
+python -m asl_live.pipeline.main --lang it    # default
+python -m asl_live.pipeline.main --lang fr    # any of it, es, fr, en, de
+python -m asl_live.pipeline.main --camera 1   # second webcam
+```
+
+The OpenCV window shows live landmarks, top-1 class + confidence,
+debouncer status, and the running word buffer. Sign letters; on a
+SPACE-sign commit the assembled word is translated and spoken
+through the default audio device. DELETE removes the last letter.
+`q` (in the OpenCV window) or `Ctrl-C` shuts down all three workers.
+
+Target language is fixed for the run in phase 5 — phase 6 will add
+button-driven language switching at runtime.
+
+### Lightweight smoke test (no audio)
+
+`scripts/demo_recognition.py` exercises the camera → landmarks →
+classifier → debouncer path and prints commit events to the
+terminal. No Argos, no Piper, no audio device required. Useful when
+debugging the recognition stack in isolation:
+
+```bash
+python scripts/demo_recognition.py
+```
+
 ## Project layout
 
 ```
-src/asl_live/        Application source (recognition, capture, …)
-tests/               Unit tests (pytest)
-scripts/             One-shot CLIs (Kaggle ingest, future setup helpers)
+src/asl_live/
+├── recognition/     Hand landmarks, classifier, debouncer
+├── train/           MLP training stack (PC-only)
+├── translation/     Argos wrapper (4 packs preloaded)
+├── tts/             Piper wrapper (5 voices preloaded)
+└── pipeline/        3-process orchestrator + word buffer
+tests/               Unit tests (pytest, no hardware required)
+scripts/             One-shot CLIs (ingest, collect, setup_argos, setup_piper, demos)
 data/                Generated datasets (gitignored)
-models/              Trained model artifacts (gitignored)
-.claude/             Project knowledge — design docs, plans, agents
+models/              Trained model artifacts + Piper voices (gitignored)
+.claude/             Project knowledge — design docs, plans, agents (gitignored)
 ```
 
 ## License
