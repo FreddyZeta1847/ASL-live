@@ -74,11 +74,11 @@ CAMERA_HEIGHT: int = 480
 # Debounce thresholds (feature 4)
 # ---------------------------------------------------------------------------
 
-STABLE_FRAMES: int = 5
-"""Consecutive same-class frames required before a commit. ~167 ms at 30 fps."""
+STABLE_FRAMES: int = 10
+"""Consecutive same-class frames required before a commit. ~333 ms at 30 fps."""
 
-GAP_FRAMES: int = 3
-"""Blind cooldown frames after a commit. ~100 ms at 30 fps."""
+GAP_FRAMES: int = 15
+"""Blind cooldown frames after a commit. ~500 ms at 30 fps."""
 
 MIN_CONF: float = 0.85
 """Per-frame confidence threshold below which a prediction is treated as no-signal."""

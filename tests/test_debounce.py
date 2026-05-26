@@ -40,14 +40,23 @@ def confident(label: str, n: int, conf: float = 0.95) -> list[Prediction]:
     return [(label, conf)] * n
 
 
+def spec_debouncer() -> Debouncer:
+    """Debouncer pinned to the (5, 3) values the §4.8 spec was written for.
+
+    Production defaults are tuned empirically in phase 7 — pinning here
+    keeps the spec's worked-example tests stable across that tuning.
+    """
+    return Debouncer(stable_frames=5, gap_frames=3, min_conf=MIN_CONF)
+
+
 # ---------------------------------------------------------------------------
-# Required cases (feature-4 §4.8)
+# Required cases (feature-4 §4.8) — run against the spec's (5, 3) values
 # ---------------------------------------------------------------------------
 
 
 def test_case1_five_a_frames_emit_exactly_one_letter():
     """1. 5 × ('A', 0.95) → one LETTER('A')."""
-    events = feed(Debouncer(), confident("A", 5))
+    events = feed(spec_debouncer(), confident("A", 5))
     assert len(events) == 1
     assert events[0] == CommitEvent(kind="LETTER", letter="A", confidence=0.95)
 
@@ -55,7 +64,7 @@ def test_case1_five_a_frames_emit_exactly_one_letter():
 def test_case2_commit_then_no_hand_does_not_double_emit():
     """2. 5 × A, then 8 × None → still exactly one LETTER('A')."""
     stream = confident("A", 5) + [None] * 8
-    events = feed(Debouncer(), stream)
+    events = feed(spec_debouncer(), stream)
     assert len(events) == 1
     assert events[0].letter == "A"
 
@@ -67,7 +76,7 @@ def test_case3_two_streaks_separated_by_no_hand_emit_twice():
     starts with the debouncer back in WATCHING with an empty streak.
     """
     stream = confident("A", 5) + [None] * 3 + confident("A", 5)
-    events = feed(Debouncer(), stream)
+    events = feed(spec_debouncer(), stream)
     assert len(events) == 2
     assert all(e.letter == "A" for e in events)
 
@@ -79,7 +88,7 @@ def test_case4_single_b_resets_the_streak():
     a fresh streak A=1..5 and commit on the fifth.
     """
     stream = confident("A", 4) + confident("B", 1) + confident("A", 5)
-    events = feed(Debouncer(), stream)
+    events = feed(spec_debouncer(), stream)
     assert len(events) == 1
     assert events[0].letter == "A"
 
@@ -87,21 +96,18 @@ def test_case4_single_b_resets_the_streak():
 def test_case5_low_confidence_never_commits():
     """5. 5 × ('A', 0.5) → no commits (every frame below MIN_CONF)."""
     assert MIN_CONF > 0.5, "test assumes MIN_CONF is above 0.5"
-    events = feed(Debouncer(), [("A", 0.5)] * 5)
+    events = feed(spec_debouncer(), [("A", 0.5)] * 5)
     assert events == []
 
 
 def test_case6_long_hold_recommits_after_cooldown():
-    """6. 35 × A with no transition → STABLE_FRAMES + GAP_FRAMES cycle repeats.
+    """6. 35 × A with no transition → STABLE + GAP cycle repeats.
 
-    Documented behavior: a held sign past the cooldown re-streaks and
-    re-commits. With STABLE=5, GAP=3, 35 frames covers
-    floor(35 / (5+3)) = 4 commits (frames 5, 13, 21, 29).
+    With STABLE=5, GAP=3 the cycle is 8 frames per commit; 35 frames
+    yields commits at frames 5, 13, 21, 29 = 4 emits.
     """
-    events = feed(Debouncer(), confident("A", 35))
-    cycle = STABLE_FRAMES + GAP_FRAMES
-    expected = 35 // cycle
-    assert len(events) == expected
+    events = feed(spec_debouncer(), confident("A", 35))
+    assert len(events) == 4
     assert all(e.letter == "A" for e in events)
 
 
@@ -139,7 +145,7 @@ def test_commit_carries_last_frame_confidence():
         ("A", 0.93),
         ("A", 0.99),  # triggering frame
     ]
-    events = feed(Debouncer(), stream)
+    events = feed(spec_debouncer(), stream)
     assert events[0].confidence == pytest.approx(0.99)
 
 
