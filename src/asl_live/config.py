@@ -111,6 +111,18 @@ export this to ``/opt/piper/voices/`` per feature-6 §3."""
 
 
 # ---------------------------------------------------------------------------
+# Pipeline queues (feature 10 / phase 5)
+# ---------------------------------------------------------------------------
+
+TRANSLATION_QUEUE_MAX: int = 8
+"""Bounded translation_in_q size. Soft cap — SPACE bursts shouldn't fill
+this; if they do we log + drop the newest word (recognizer side)."""
+
+TTS_QUEUE_MAX: int = 3
+"""Bounded tts_in_q size; oldest dropped when full per feature-6 §4."""
+
+
+# ---------------------------------------------------------------------------
 # GPIO pin assignments (feature 8) — referenced when the [pi] profile is installed
 # ---------------------------------------------------------------------------
 
