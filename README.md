@@ -1,13 +1,21 @@
-# ASL-live
+<p align="center">
+  <h1 align="center">ASL-live</h1>
+  <p align="center"><b>Offline ASL → Speech on Raspberry Pi</b></p>
+  <p align="center">Sign ASL letters into a USB camera, hear the translated word spoken back in your chosen language — fully phone-free and internet-free.</p>
+</p>
 
-Offline ASL alphabet → spoken translation device on Raspberry Pi 5.
-A user signs ASL letters into a USB camera; the Pi recognizes them, builds words,
-translates each completed word into the chosen language (IT / ES / FR / EN / DE),
-and speaks it through a USB speaker. Fully phone-free and internet-free.
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/MediaPipe-Hand_Landmarks-0097A7?style=for-the-badge&logo=google&logoColor=white" />
+  <img src="https://img.shields.io/badge/OpenCV-Video-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white" />
+  <img src="https://img.shields.io/badge/PyTorch-Training-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" />
+  <img src="https://img.shields.io/badge/ONNX_Runtime-Inference-005CED?style=for-the-badge&logo=onnx&logoColor=white" />
+  <img src="https://img.shields.io/badge/Argos-Translate-22B573?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Piper-TTS-9B59B6?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Raspberry_Pi-5-A22846?style=for-the-badge&logo=raspberrypi&logoColor=white" />
+</p>
 
-The full design lives under [`.claude/docs/`](.claude/docs/) (architecture,
-tech stack, per-feature decisions). The implementation roadmap and per-phase
-plans live under [`.claude/plans/`](.claude/plans/).
+The full design lives under [`.claude/docs/`](.claude/docs/) (architecture, tech stack, per-feature decisions). The implementation roadmap and per-phase plans live under [`.claude/plans/`](.claude/plans/).
 
 ## Status
 
