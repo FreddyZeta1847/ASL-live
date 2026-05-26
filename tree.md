@@ -7,9 +7,15 @@
 │   ├── collect.py
 │   ├── demo_recognition.py
 │   ├── ingest_public.py
-│   └── setup_models.py
+│   ├── setup_argos.py
+│   ├── setup_models.py
+│   └── setup_piper.py
 ├── src/
 │   ├── asl_live/
+│   │   ├── pipeline/
+│   │   │   ├── __init__.py
+│   │   │   ├── buffer.py
+│   │   │   └── main.py
 │   │   ├── recognition/
 │   │   │   ├── __init__.py
 │   │   │   ├── classifier.py
@@ -23,6 +29,12 @@
 │   │   │   ├── metrics.py
 │   │   │   ├── model.py
 │   │   │   └── train_mlp.py
+│   │   ├── translation/
+│   │   │   ├── __init__.py
+│   │   │   └── translator.py
+│   │   ├── tts/
+│   │   │   ├── __init__.py
+│   │   │   └── speaker.py
 │   │   ├── __init__.py
 │   │   └── config.py
 │   └── asl_live.egg-info/
@@ -41,7 +53,10 @@
 │   ├── test_export.py
 │   ├── test_landmarks.py
 │   ├── test_metrics.py
-│   └── test_model.py
+│   ├── test_model.py
+│   ├── test_pipeline.py
+│   ├── test_speaker.py
+│   └── test_translator.py
 ├── .gitignore
 ├── index.html
 ├── pyproject.toml
