@@ -8,6 +8,7 @@ module imports directly.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -91,6 +92,22 @@ MIN_CONF: float = 0.85
 ARGOS_LANGS: tuple[str, ...] = ("it", "es", "fr", "de")
 """Argos pack target language codes (source is always 'en'). 'en' itself
 is an identity short-circuit at runtime — no pack required."""
+
+
+# ---------------------------------------------------------------------------
+# Text-to-speech (feature 6)
+# ---------------------------------------------------------------------------
+
+TTS_LANGS: tuple[str, ...] = ("it", "es", "fr", "en", "de")
+"""Piper voice language codes. All 5 voices are preloaded at Speaker init."""
+
+PIPER_VOICES_DIR: Path = Path(
+    os.environ.get("ASL_PIPER_VOICES_DIR", str(MODELS_DIR / "piper" / "voices"))
+)
+"""Where Piper voice ``<lang>.onnx`` + ``<lang>.json`` files live. Override
+with the ``ASL_PIPER_VOICES_DIR`` env var. Default is project-relative
+(gitignored alongside ``mlp.onnx``). The phase-7 Pi systemd unit will
+export this to ``/opt/piper/voices/`` per feature-6 §3."""
 
 
 # ---------------------------------------------------------------------------
