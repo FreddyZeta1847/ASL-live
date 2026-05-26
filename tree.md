@@ -5,6 +5,7 @@
 ├── scripts/
 │   ├── __init__.py
 │   ├── collect.py
+│   ├── demo_recognition.py
 │   ├── ingest_public.py
 │   └── setup_models.py
 ├── src/
@@ -12,6 +13,7 @@
 │   │   ├── recognition/
 │   │   │   ├── __init__.py
 │   │   │   ├── classifier.py
+│   │   │   ├── debounce.py
 │   │   │   └── landmarks.py
 │   │   ├── train/
 │   │   │   ├── __init__.py
@@ -35,6 +37,7 @@
 │   ├── test_augment.py
 │   ├── test_classifier.py
 │   ├── test_dataset.py
+│   ├── test_debounce.py
 │   ├── test_export.py
 │   ├── test_landmarks.py
 │   ├── test_metrics.py
