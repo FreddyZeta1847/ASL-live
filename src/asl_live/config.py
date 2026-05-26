@@ -85,6 +85,15 @@ MIN_CONF: float = 0.85
 
 
 # ---------------------------------------------------------------------------
+# Translation (feature 5)
+# ---------------------------------------------------------------------------
+
+ARGOS_LANGS: tuple[str, ...] = ("it", "es", "fr", "de")
+"""Argos pack target language codes (source is always 'en'). 'en' itself
+is an identity short-circuit at runtime — no pack required."""
+
+
+# ---------------------------------------------------------------------------
 # GPIO pin assignments (feature 8) — referenced when the [pi] profile is installed
 # ---------------------------------------------------------------------------
 
