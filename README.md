@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="ASL-live logo" width="180" />
+  <img src="assets/logo.png" alt="ASL-live logo" width="240" />
 </p>
 
 <p align="center">
