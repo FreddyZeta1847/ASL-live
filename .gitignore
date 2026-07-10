@@ -45,4 +45,6 @@ logs/
 
 # Claude Code local-only settings
 .claude/settings.local.json
-.claude
+
+# Obsidian vault (local-only reasoning layer)
+vault/
